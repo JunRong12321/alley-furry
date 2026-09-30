@@ -2,22 +2,53 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Alley Fury</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
-html,body{margin:0;height:100%;background:#120a1c}
+html,body{margin:0;height:100%;background:#120a1c;overflow:hidden;touch-action:none}
+#pad{position:fixed;left:0;right:0;bottom:0;display:none;justify-content:space-between;align-items:flex-end;padding:12px 16px calc(12px + env(safe-area-inset-bottom));pointer-events:none;user-select:none;-webkit-user-select:none}
+#pad>div{display:grid;gap:8px;pointer-events:auto}
+.dp{grid-template-columns:repeat(3,62px);grid-template-rows:repeat(2,62px)}
+.ac{grid-template-columns:repeat(3,72px);grid-template-rows:72px}
+#pad button,#mn{font:bold 15px monospace;color:#fff;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.45);border-radius:14px;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#pad button:active{background:rgba(255,210,63,.5)}
+#mn{position:fixed;top:8px;right:8px;display:none;padding:6px 10px;font-size:12px}
+@media (pointer:coarse){#pad{display:flex}#mn{display:block}}
 body{display:grid;place-items:center}
 canvas{width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;display:block}
 </style>
 </head>
 <body>
 <canvas id="c" width="960" height="540"></canvas>
+<div id="pad">
+  <div class="dp">
+    <button data-k="KeyW" style="grid-area:1/2">&#9650;</button>
+    <button data-k="KeyA" style="grid-area:2/1">&#9664;</button>
+    <button data-k="KeyS" style="grid-area:2/2">&#9660;</button>
+    <button data-k="KeyD" style="grid-area:2/3">&#9654;</button>
+  </div>
+  <div class="ac"><button data-k="KeyF">PUNCH</button><button data-k="KeyG">KICK</button><button data-k="KeyH">FIRE</button></div>
+</div>
+<button id="mn" data-k="Escape">MENU</button>
 <script>
 const C=document.getElementById('c'),g=C.getContext('2d'),W=960,H=540,GY=470;
 const KEYS={};
 addEventListener('keydown',e=>{if(e.code.startsWith('Arrow')||e.code==='Space')e.preventDefault();if(e.repeat)return;KEYS[e.code]=1;actx();onKey(e.code)});
 addEventListener('keyup',e=>KEYS[e.code]=0);
+// on-screen buttons (touch) feed the same key state as the keyboard
+document.querySelectorAll('[data-k]').forEach(b=>{
+  const k=b.dataset.k,up=()=>KEYS[k]=0;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId)}catch(_){}KEYS[k]=1;actx();onKey(k)});
+  b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);
+});
+// click / tap the menu options (or the match-over screen)
+C.addEventListener('pointerdown',e=>{
+  actx();window.focus();
+  const r=C.getBoundingClientRect(),y=(e.clientY-r.top)*H/r.height;
+  if(G.mode==='menu'){if(y>=220&&y<284)start(false);else if(y>=284&&y<350)start(true)}
+  else if(G.mode==='match')start(twoP);
+});
 let AC;function actx(){if(!AC)try{AC=new AudioContext}catch(e){}}
 function sfx(fr,d,type='square',v=.06){if(!AC)return;const o=AC.createOscillator(),a=AC.createGain(),t=AC.currentTime;o.type=type;o.frequency.setValueAtTime(fr,t);o.frequency.exponentialRampToValueAtTime(Math.max(30,fr/3),t+d);a.gain.setValueAtTime(v,t);a.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(a).connect(AC.destination);o.start();o.stop(t+d)}
 
@@ -190,10 +221,11 @@ function render(){
   if(G.mode==='menu'){
     g.fillStyle='rgba(10,4,20,.55)';g.fillRect(0,0,W,H);
     tx('ALLEY FURY',W/2,160,52,'#ffd23f');
-    tx('1  -  1 PLAYER VS CPU',W/2,260,18);tx('2  -  2 PLAYERS',W/2,300,18);
-    tx('P1  WASD  F punch  G kick  H fireball',W/2,380,11,'#ddd');
-    tx('P2  ARROWS  K punch  L kick  ; fireball',W/2,405,11,'#ddd');
-    tx('Hold back to block  -  Esc for menu',W/2,440,11,'#ddd');
+    [[232,'1 PLAYER VS CPU',262],[292,'2 PLAYERS',322]].forEach(([y,s,b])=>{g.fillStyle='rgba(255,255,255,.1)';g.fillRect(W/2-230,y,460,46);g.strokeStyle='#ffd23f';g.lineWidth=2;g.strokeRect(W/2-230,y,460,46);tx(s,W/2,b,18)});
+    tx('Click / tap an option, or press 1 or 2',W/2,364,10,'#ffd58a');
+    tx('P1  WASD  F punch  G kick  H fireball',W/2,400,11,'#ddd');
+    tx('P2  ARROWS  K punch  L kick  ; fireball',W/2,425,11,'#ddd');
+    tx('Hold back to block  -  Esc for menu',W/2,455,11,'#ddd');
   }else{
     P.forEach(drawF);FB.forEach(drawFB);hud();
     if(G.mode==='intro')tx(G.t<70?'ROUND '+G.n:'FIGHT!',W/2,250,G.t<70?40:52,G.t<70?'#fff':'#ff5a3c');
@@ -204,7 +236,7 @@ function render(){
     if(G.mode==='match'){
       g.fillStyle='rgba(10,4,20,.6)';g.fillRect(0,0,W,H);
       tx(P.find(f=>f.wins>=2).name+' WINS THE MATCH',W/2,240,28,'#ffd23f');
-      tx('ENTER - rematch    ESC - menu',W/2,300,14);
+      tx('ENTER / TAP - rematch    ESC - menu',W/2,300,14);
     }
   }
   g.restore();
