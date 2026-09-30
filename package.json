@@ -1,0 +1,11 @@
+{
+  "name": "alley-fury",
+  "version": "2.0.0",
+  "description": "A 2D fighting game built with plain ES modules",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}
