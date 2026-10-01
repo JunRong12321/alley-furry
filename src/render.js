@@ -1,5 +1,5 @@
 // All canvas drawing. Reads the world; never changes game state.
-import { W, H, GY, ROUND_TIME, CHARS, PORT, BTN, movesOf } from './config.js';
+import { W, H, GY, ROUND_TIME, CHARS, PORT, movesOf, selButtons, PAUSE_ITEMS, pauseRect, COMBOS, MOVE_NAMES } from './config.js';
 
 const FONT = '"Press Start 2P",monospace';
 let bg;
@@ -169,6 +169,11 @@ function drawPanel(g, ch, x, y, active, col, label) {
   });
   wrap(ch.desc, 52).forEach((ln, i) => text(g, ln, x + 14, y + 146 + i * 14, 8, '#c9b8e0', 'left'));
 }
+function button(g, b, label, col, on, dim) {
+  g.fillStyle = dim ? 'rgba(255,255,255,.05)' : on ? '#2e9e5b' : 'rgba(255,255,255,.12)'; g.fillRect(b.x, b.y, b.w, b.h);
+  g.strokeStyle = dim ? '#555' : col; g.lineWidth = 2; g.strokeRect(b.x, b.y, b.w, b.h);
+  text(g, label, b.x + b.w / 2, b.y + 22, 9, dim ? '#777' : '#fff');
+}
 function drawSelect(g, w) {
   const s = w.sel;
   g.fillStyle = 'rgba(10,4,20,.6)'; g.fillRect(0, 0, W, H);
@@ -177,45 +182,60 @@ function drawSelect(g, w) {
     const bx = PORT.x0 + i * (PORT.w + PORT.gap), by = PORT.y;
     g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(bx, by, PORT.w, PORT.h);
     drawIcon(g, ch.c, bx, by);
-    [0, 1].forEach(n => { if (s.pick[n] === i) { g.strokeStyle = SLOT_COL[n]; g.lineWidth = 4; g.strokeRect(bx + n * 5 + 2, by + n * 5 + 2, PORT.w - n * 10 - 4, PORT.h - n * 10 - 4); } });
+    [0, 1].forEach(n => { if (s.cur[n] === i) { g.strokeStyle = SLOT_COL[n]; g.lineWidth = s.roll[n] ? 6 : 4; g.strokeRect(bx + n * 5 + 2, by + n * 5 + 2, PORT.w - n * 10 - 4, PORT.h - n * 10 - 4); } });
     text(g, ch.name, bx + PORT.w / 2, by + PORT.h + 16, 9);
   });
   [0, 1].forEach(n => {
-    const ch = CHARS[s.pick[n]], x = n ? 850 : 110, mirror = n === 1 && s.pick[0] === s.pick[1];
-    text(g, n === 0 ? 'P1' : (w.twoP ? 'P2' : 'CPU'), x, 140, 14, SLOT_COL[n]);
-    if (ch) drawPreview(g, ch, mirror ? { ...ch.c, gi: ch.c.band, band: ch.c.gi } : ch.c, n, x);
-    else text(g, '?', x, 300, 60, SLOT_COL[n]);
-    drawPanel(g, ch, n ? 490 : 20, 352, s.slot === n, SLOT_COL[n], n === 0 ? 'P1' : (w.twoP ? 'P2' : 'CPU'));
+    const ch = CHARS[s.cur[n]], x = n ? 850 : 110, cpu = !w.twoP && n === 1, label = n === 0 ? 'P1' : (w.twoP ? 'P2' : 'CPU');
+    const mirror = n === 1 && s.cur[0] === s.cur[1], b = selButtons(n), ready = s.lock[n] && !s.roll[n];
+    text(g, label, x, 140, 14, SLOT_COL[n]);
+    drawPreview(g, ch, mirror ? { ...ch.c, gi: ch.c.band, band: ch.c.gi } : ch.c, n, x);
+    button(g, b.lock, cpu ? 'AUTO' : ready ? 'READY!' : 'LOCK IN', SLOT_COL[n], ready && !cpu, cpu);
+    button(g, b.rand, s.roll[n] ? 'ROLLING...' : 'RANDOM', '#ffd23f', !!s.roll[n], false);
+    text(g, n === 0 ? 'A/D move   F lock   G random' : (w.twoP ? 'LEFT/RIGHT   K lock   L random' : 'Tab: choose the CPU fighter'), (b.lock.x + b.rand.x + b.rand.w) / 2, 246, 8, '#c9b8e0');
+    drawPanel(g, ch, n ? 490 : 20, 352, s.slot === n, SLOT_COL[n], label);
+    if (ready && !cpu) text(g, 'READY', (n ? 490 : 20) + 436, 382, 11, '#3ddc84', 'right');
   });
-  if (s.pick.every(p => p !== null)) {
-    g.fillStyle = '#e63946'; g.fillRect(BTN.x, BTN.y, BTN.w, BTN.h); g.strokeStyle = '#ffd23f'; g.lineWidth = 3; g.strokeRect(BTN.x, BTN.y, BTN.w, BTN.h);
-    text(g, 'FIGHT!', W / 2, BTN.y + 33, 20);
-    text(g, 'or press ENTER', W / 2, BTN.y + 72, 8, '#ddd');
-  } else text(g, 'PICK BOTH SIDES', W / 2, BTN.y + 30, 10, '#ffd58a');
-  text(g, 'Click a fighter for the highlighted side', W / 2, 200, 9, '#ddd');
-  text(g, 'Click a side to switch  -  Esc: back', W / 2, 218, 9, '#ddd');
+  if (s.go) text(g, 'GET READY!', W / 2, 320, 22, '#ff5a3c');
+  else { text(g, 'Both players pick at the same time', W / 2, 296, 9, '#ddd'); text(g, 'Mouse: click a side to choose who you control  -  Esc: back', W / 2, 316, 8, '#c9b8e0'); }
+}
+function drawPause(g, w) {
+  g.fillStyle = 'rgba(10,4,20,.75)'; g.fillRect(0, 0, W, H);
+  text(g, 'PAUSED', W / 2, 150, 34, '#ffd23f');
+  PAUSE_ITEMS.forEach((label, i) => {
+    const b = pauseRect(i), on = w.pm === i;
+    g.fillStyle = on ? '#e63946' : 'rgba(255,255,255,.1)'; g.fillRect(b.x, b.y, b.w, b.h);
+    g.strokeStyle = '#ffd23f'; g.lineWidth = on ? 4 : 2; g.strokeRect(b.x, b.y, b.w, b.h);
+    text(g, label, W / 2, b.y + 31, 16);
+  });
+  text(g, 'W/S or Up/Down + Enter, or click  -  Esc resumes', W / 2, 384, 8, '#c9b8e0');
+  text(g, 'COMBO SKILLS  (extra damage)', W / 2, 410, 10, '#ffd58a');
+  COMBOS.forEach((c, i) => text(g, c.name + ': ' + c.seq.map(k => MOVE_NAMES[k]).join(', ') + '  +' + c.bonus, i < 4 ? 40 : 500, 432 + (i % 4) * 17, 7, '#ddd', 'left'));
 }
 
 export function render(g, w) {
   bg ||= makeBackground();
+  const m = w.mode === 'pause' ? w.back : w.mode;                         // pause draws the frozen match underneath
   g.save();
   if (w.shake > .5) g.translate((Math.random() - .5) * w.shake, (Math.random() - .5) * w.shake);
   g.drawImage(bg, 0, 0);
-  if (w.mode === 'menu') drawMenu(g);
-  else if (w.mode === 'select') drawSelect(g, w);
+  if (m === 'menu') drawMenu(g);
+  else if (m === 'select') drawSelect(g, w);
   else {
     w.fighters.forEach(f => drawFighter(g, f)); w.fireballs.forEach(b => drawFireball(g, b)); drawFx(g, w); drawHud(g, w); drawCombo(g, w);
-    if (w.mode === 'intro') text(g, w.t < 70 ? 'ROUND ' + w.round : 'FIGHT!', W / 2, 250, w.t < 70 ? 40 : 52, w.t < 70 ? '#fff' : '#ff5a3c');
-    if (w.mode === 'end') {
+    if (m === 'intro') text(g, w.t < 70 ? 'ROUND ' + w.round : 'FIGHT!', W / 2, 250, w.t < 70 ? 40 : 52, w.t < 70 ? '#fff' : '#ff5a3c');
+    if (m === 'end') {
       text(g, w.time <= 0 && w.fighters.every(f => f.hp > 0) ? 'TIME UP' : 'K.O.', W / 2, 230, 56, '#ff5a3c');
       if (w.t > 50) text(g, w.winner < 0 ? 'DRAW' : w.fighters[w.winner].name + ' WINS', W / 2, 300, 24);
     }
-    if (w.mode === 'match') {
+    if (m === 'match') {
       g.fillStyle = 'rgba(10,4,20,.6)'; g.fillRect(0, 0, W, H);
       const champ = w.fighters.find(f => f.wins >= 2);
       text(g, (champ ? champ.name : '?') + ' WINS THE MATCH', W / 2, 240, 28, '#ffd23f');
-      text(g, 'ENTER / TAP - rematch    ESC - menu', W / 2, 300, 14);
+      text(g, 'ENTER / TAP - rematch    C - change fighters', W / 2, 300, 12);
+      text(g, 'ESC - main menu', W / 2, 330, 10, '#c9b8e0');
     }
   }
+  if (w.mode === 'pause') drawPause(g, w);
   g.restore();
 }

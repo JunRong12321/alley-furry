@@ -1,4 +1,4 @@
-import { GY, METER_MAX } from './config.js';
+import { GY, METER_MAX, COMBOS } from './config.js';
 
 export const hurtbox = o => ({ x1: o.x - 28, x2: o.x + 28, y1: o.y - (o.crouch ? 85 : 135), y2: o.y });
 export const canHit = o => o.hp > 0 && !(o.kd > 0);          // a knocked-down fighter can't be hit again
@@ -21,14 +21,20 @@ export function applyHit(w, from, to, h) {
     gain(at, 4); w.sfx(140, .08, 'triangle', .08);
   } else {
     const cont = to.stun > 0 && to.cmb > 0, n = cont ? to.cmb : 0, counter = !!to.atk;
-    const dmg = Math.max(1, Math.round(h.dmg * Math.max(.4, 1 - .1 * n) * (counter ? 1.25 : 1)));
+    const seq = (cont ? [...(to.seq || []), h.key] : [h.key]).slice(-6);          // moves that hit during this combo
+    const found = COMBOS.filter(c => c.seq.length <= seq.length && c.seq.every((k, i) => k === seq[seq.length - c.seq.length + i]))
+                        .sort((a, b) => b.seq.length - a.seq.length)[0];
+    const combo = found && found.seq.length > (cont ? to.cbLen || 0 : 0) ? found : null;   // each skill pays once per combo
+    to.cbLen = combo ? combo.seq.length : (cont ? to.cbLen || 0 : 0); to.seq = seq;
+    const dmg = Math.max(1, Math.round(h.dmg * Math.max(.5, 1 - .08 * n) * (counter ? 1.25 : 1) + (combo ? combo.bonus : 0)));
     to.hp = Math.max(0, to.hp - dmg);
     to.cmb = n + 1; to.cmbDmg = (cont ? to.cmbDmg : 0) + dmg; to.cmbT = 70;
     to.stun = h.st + (counter ? 4 : 0); to.vx = from.face * h.kb; to.atk = null; to.hit = 0; to.flash = 6;
-    gain(at, dmg * 1.5); gain(to, dmg * .8);
+    gain(at, dmg * 1.5 + (combo ? 10 : 0)); gain(to, dmg * .8);
     w.hitstop = counter ? 8 : 5; w.shake = 7; fx.k = counter ? 'counter' : 'hit';
     if (counter) w.banner = { text: 'COUNTER!', t: 45 };
-    if (h.kd) { to.kd = to.stun = 44; to.vy = -9; to.vx = from.face * (h.kb + 2); w.hitstop = 8; w.banner = { text: 'KNOCKDOWN!', t: 45 }; }
+    if (h.kd || (combo && combo.kd)) { to.kd = to.stun = 44; to.vy = -9; to.vx = from.face * (h.kb + 2); w.hitstop = 8; w.banner = { text: 'KNOCKDOWN!', t: 45 }; }
+    if (combo) { w.banner = { text: combo.name + '  +' + combo.bonus, t: 70 }; w.sfx(520, .25, 'square', .08); }
     w.sfx(200, .15, 'sawtooth', .09);
     if (to.hp <= 0) { to.stun = 999; to.kd = 0; to.vx = from.face * 6; to.vy = -10; w.hitstop = 12; w.shake = 14; w.sfx(90, .5, 'sawtooth', .12); }
   }
@@ -40,7 +46,7 @@ export function strike(w, f, o, A) {
   const hx = Math.min(x1, x2), hw = Math.abs(x2 - x1), y1 = f.y + A.y, y2 = y1 + A.h, b = hurtbox(o);
   if (canHit(o) && hx < b.x2 && hx + hw > b.x1 && y1 < b.y2 && y2 > b.y1) {
     f.hit = 1;
-    applyHit(w, f, o, { dmg: A.dmg, st: A.st, kb: A.kb, g: A.g, kd: A.kd, chip: A.chip,
+    applyHit(w, f, o, { key: f.atk, dmg: A.dmg, st: A.st, kb: A.kb, g: A.g, kd: A.kd, chip: A.chip,
       x: (Math.max(hx, b.x1) + Math.min(hx + hw, b.x2)) / 2, y: (Math.max(y1, b.y1) + Math.min(y2, b.y2)) / 2 });
   }
 }

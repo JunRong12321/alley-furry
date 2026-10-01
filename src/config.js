@@ -8,12 +8,12 @@ export const BUFFER = 8, METER_MAX = 100;      // input buffer (frames), super m
 // Move data. s/a/r = startup/active/recovery frames, st = hit-stun, kb = knockback,
 // g = guard height: 'mid' (block high or low), 'high' (must stand-block), 'low' (must crouch-block). kd = knockdown.
 export const ATK = {
-  p:  { s: 4, a: 4, r: 9,  dmg: 6,  reach: 75,  y: -100, h: 32, st: 18, kb: 4, g: 'mid' },
-  k:  { s: 7, a: 5, r: 13, dmg: 10, reach: 95,  y: -70,  h: 40, st: 24, kb: 7, g: 'mid' },
-  cp: { s: 3, a: 3, r: 7,  dmg: 4,  reach: 65,  y: -60,  h: 28, st: 16, kb: 3, g: 'mid' },               // crouching jab
+  p:  { s: 4, a: 4, r: 9,  dmg: 6,  reach: 75,  y: -100, h: 32, st: 20, kb: 4, g: 'mid' },
+  k:  { s: 7, a: 5, r: 13, dmg: 10, reach: 95,  y: -70,  h: 40, st: 26, kb: 7, g: 'mid' },
+  cp: { s: 3, a: 3, r: 7,  dmg: 4,  reach: 65,  y: -60,  h: 28, st: 18, kb: 3, g: 'mid' },               // crouching jab
   c:  { s: 8, a: 4, r: 17, dmg: 8,  reach: 105, y: -28,  h: 28, st: 40, kb: 6, g: 'low', kd: 1 },        // low sweep
-  jp: { s: 3, a: 8, r: 6,  dmg: 7,  reach: 60,  y: -105, h: 45, st: 20, kb: 4, g: 'high' },              // jump punch
-  j:  { s: 4, a: 40, r: 8, dmg: 11, reach: 70,  y: -80,  h: 85, st: 24, kb: 6, g: 'high' },              // fly kick
+  jp: { s: 3, a: 8, r: 6,  dmg: 7,  reach: 60,  y: -105, h: 45, st: 22, kb: 4, g: 'high' },              // jump punch
+  j:  { s: 4, a: 40, r: 6, dmg: 11, reach: 70,  y: -80,  h: 85, st: 34, kb: 6, g: 'high' },              // fly kick
   s:  { s: 11, a: 0, r: 26 },
 };
 export const CHARS = [
@@ -55,8 +55,27 @@ export const movesOf = ch => {
   return { p, k, cp: sc(ATK.cp, pm), c: sc(ATK.c, km), jp: sc(ATK.jp, pm), j: sc(ATK.j, km), s: { ...ATK.s, ...ch.sp } };
 };
 // Character-select screen layout (canvas coordinates)
+// Combo skills: when the last hits of a combo match `seq`, the finisher deals `bonus` extra damage (not reduced by combo scaling).
+// A longer skill inside the same combo pays again, so chains can be upgraded (e.g. TRIPLE STRIKE -> MEGA COMBO).
+export const COMBOS = [
+  { seq: ['p', 'p', 'p'],      name: 'TRIPLE JAB',    bonus: 6 },
+  { seq: ['p', 'p', 'k'],      name: 'TRIPLE STRIKE', bonus: 10 },
+  { seq: ['cp', 'cp', 'c'],    name: 'LOW RUSH',      bonus: 8 },
+  { seq: ['cp', 'p', 'k'],     name: 'CHAIN KICK',    bonus: 9 },
+  { seq: ['j', 'p'],           name: 'AIR RAID',      bonus: 7 },
+  { seq: ['p', 's'],           name: 'PUNCH CANCEL',  bonus: 8 },
+  { seq: ['k', 's'],           name: 'KICK CANCEL',   bonus: 10 },
+  { seq: ['p', 'p', 'k', 's'], name: 'MEGA COMBO',    bonus: 20, kd: 1 },
+];
+export const MOVE_NAMES = { p: 'Punch', k: 'Kick', cp: 'Down+Punch', c: 'Down+Kick', jp: 'Jump Punch', j: 'Fly Kick', s: 'Special' };
+
+// Character select: per-player LOCK IN / RANDOM buttons (P1 left of centre, P2 right of centre)
+export const selButtons = n => { const x = n ? W / 2 + 14 : W / 2 - 14 - 268; return { lock: { x, y: 188, w: 130, h: 34 }, rand: { x: x + 138, y: 188, w: 130, h: 34 } }; };
+export const ROLL_FRAMES = 180;                                   // random roll lasts 3 seconds
+// Pause menu
+export const PAUSE_ITEMS = ['RESUME', 'REMATCH', 'EXIT MATCH'];
+export const pauseRect = i => ({ x: 330, y: 190 + i * 62, w: 300, h: 48 });
 export const PORT = { x0: 203, y: 66, w: 84, h: 84, gap: 10 };
-export const BTN = { x: 380, y: 255, w: 200, h: 50 };
 export const KEYMAP = [
   { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyJ' },
   { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon', x: 'Quote' },

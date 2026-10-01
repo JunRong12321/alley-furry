@@ -11,6 +11,9 @@ export function cpuInput(w, f, o) {
   if (w.fireballs.some(b => b.owner !== f && Math.abs(b.x - f.x) < 220) && Math.random() < .08) a.m = Math.random() < .5 ? 'back' : 'jump';
   if (f.y < 470 && d < 170 && Math.random() < .12) out.k = 1;                                   // fly kick on the way down
   if (f.meter >= 100 && d < (f.mv.s.type === 'rise' ? 120 : 380) && Math.random() < .03) out.x = 1;   // super art
+  if (f.atk && f.atk !== 's' && f.hit && Math.random() < .25) {                           // combo: follow up after a hit
+    const q = Math.random(); if (q < .4) out.s = 1; else if (q < .7) out.p = 1; else out.k = 1;
+  }
   switch (a.m) {
     case 'fwd': out[toward] = 1; break;
     case 'back': out[away] = 1; if (a.duck) out.d = 1; break;

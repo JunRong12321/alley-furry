@@ -9,7 +9,7 @@ export function createFighter(ch, isCpu, mirror) {
 function blank(x, face, hp) {
   return { x, y: GY, vx: 0, vy: 0, face, hp, show: hp, atk: null, t: 0, hit: 0, stun: 0, cd: 0,
            crouch: 0, block: 0, prev: {}, walk: 0, flash: 0,
-           buf: {}, kd: 0, cmb: 0, cmbDmg: 0, cmbT: 0, meter: 0, sup: 0 };
+           buf: {}, kd: 0, cmb: 0, cmbDmg: 0, cmbT: 0, meter: 0, sup: 0, seq: [], cbLen: 0 };
 }
 export const resetFighter = (f, x, face) => Object.assign(f, blank(x, face, f.maxHp));
 
