@@ -43,8 +43,8 @@ canvas{
 }
 
 .ac{
-  grid-template-columns:repeat(3,72px);
-  grid-template-rows:72px
+  grid-template-columns:repeat(4,64px);
+  grid-template-rows:64px
 }
 
 #pad button,#mn{
@@ -79,4 +79,7 @@ canvas{
   #mn{
     display:block
   }
+}
+body[data-mode=menu] #pad,body[data-mode=select] #pad,body[data-mode=match] #pad{
+  visibility:hidden
 }
