@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/32881805/README.md)
 # Alley Fury
 
 A 2D fighting game (1P vs CPU or 2P local) written as plain ES modules. No build step, no dependencies.
@@ -7,7 +8,7 @@ A 2D fighting game (1P vs CPU or 2P local) written as plain ES modules. No build
 ```
 index.html          page shell + touch buttons
 css/style.css       layout
-src/config.js       constants: attacks, skins, key bindings
+src/config.js       constants, fighter roster (CHARS), key bindings
 src/game.js         game rules (rounds, timer, physics) - no DOM
 src/fighter.js      movement, attacks, blocking
 src/combat.js       hitboxes and damage
@@ -20,6 +21,19 @@ tests/              automated tests (Node)
 ```
 
 Game logic (`game.js`, `fighter.js`, `combat.js`, `ai.js`) never touches the browser, so it is unit-tested, including a stress test that mashes random buttons for 80,000 frames and checks the state never breaks.
+
+## Fighters
+
+| Fighter | Style | Special |
+|---|---|---|
+| KAI | Balanced all-rounder | Fireball (long range) |
+| ROX | Fast, low health | Dash Strike (rush forward) |
+| BRUNO | Slow tank, huge health | Quake Wave (slow, heavy projectile) |
+| MIRA | Highest jump | Rising Kick (anti-air) |
+| SORA | Zoner | Rapid Shot (fast, cheap projectile) |
+| TORA | Heavy brawler | Tiger Rush (charging strike) |
+
+On the select screen, click a fighter to see their stats (health, speed, power), punch / kick / special damage and description at the bottom. Player 1's pick shows on the left, Player 2's on the right. To add a fighter, append an entry to `CHARS` in `src/config.js`.
 
 ## Run
 
