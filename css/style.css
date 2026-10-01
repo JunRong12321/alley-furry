@@ -1,85 +1,12 @@
-html,body{
-  margin:0;
-  height:100%;
-  background:#120a1c;
-  overflow:hidden;
-  touch-action:none
-}
-
-body{
-  display:grid;
-  place-items:center
-}
-
-canvas{
-  width:min(100vw,calc(100vh*16/9));
-  aspect-ratio:16/9;
-  display:block
-}
-
-#pad{
-  position:fixed;
-  left:0;
-  right:0;
-  bottom:0;
-  display:none;
-  justify-content:space-between;
-  align-items:flex-end;
-  padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-  pointer-events:none;
-  user-select:none;
-  -webkit-user-select:none
-}
-
-#pad>div{
-  display:grid;
-  gap:8px;
-  pointer-events:auto
-}
-
-.dp{
-  grid-template-columns:repeat(3,62px);
-  grid-template-rows:repeat(2,62px)
-}
-
-.ac{
-  grid-template-columns:repeat(4,64px);
-  grid-template-rows:64px
-}
-
-#pad button,#mn{
-  font:bold 15px monospace;
-  color:#fff;
-  background:rgba(255,255,255,.16);
-  border:2px solid rgba(255,255,255,.45);
-  border-radius:14px;
-  touch-action:none;
-  -webkit-tap-highlight-color:transparent;
-  user-select:none;
-  -webkit-user-select:none
-}
-
-#pad button:active{
-  background:rgba(255,210,63,.5)
-}
-
-#mn{
-  position:fixed;
-  top:8px;
-  right:8px;
-  display:none;
-  padding:6px 10px;
-  font-size:12px
-}
-
-@media (pointer:coarse){
-  #pad{
-    display:flex
-  }
-  #mn{
-    display:block
-  }
-}
-body[data-mode=menu] #pad,body[data-mode=select] #pad,body[data-mode=match] #pad{
-  visibility:hidden
-}
+html,body{margin:0;height:100%;background:#120a1c;overflow:hidden;touch-action:none}
+body{display:grid;place-items:center}
+canvas{width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;display:block}
+#pad{position:fixed;left:0;right:0;bottom:0;display:none;justify-content:space-between;align-items:flex-end;padding:12px 16px calc(12px + env(safe-area-inset-bottom));pointer-events:none;user-select:none;-webkit-user-select:none}
+#pad>div{display:grid;gap:8px;pointer-events:auto}
+.dp{grid-template-columns:repeat(3,62px);grid-template-rows:repeat(2,62px)}
+.ac{grid-template-columns:repeat(4,64px);grid-template-rows:64px}
+#pad button,#mn{font:bold 15px monospace;color:#fff;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.45);border-radius:14px;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#pad button:active{background:rgba(255,210,63,.5)}
+#mn{position:fixed;top:8px;right:8px;display:none;padding:6px 10px;font-size:12px}
+@media (pointer:coarse){#pad{display:flex}#mn{display:block}}
+body[data-mode=menu] #pad,body[data-mode=select] #pad,body[data-mode=match] #pad,body[data-mode=pause] #pad{visibility:hidden}
