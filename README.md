@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/32882208/README.md)
 # Alley Fury
 
 A 2D fighting game (1P vs CPU or 2P local) written as plain ES modules. No build step, no dependencies.
@@ -80,3 +79,23 @@ Settings > Pages > Deploy from a branch > `main` / root. The game is served at `
 | Input buffer | A button press is remembered for 8 frames, so slightly-early presses still come out. |
 
 All move numbers (startup, active, recovery, damage, hit-stun, guard height) are in `ATK` in `src/config.js`; damage rules are in `src/combat.js`.
+
+## Character select, pause menu and combo skills
+
+- **Both players pick at the same time.** P1: `A/D` move, `F` lock in, `G` random. P2: `Left/Right` move, `K` lock in, `L` random. With the mouse, click a side to choose who you control, then click a fighter, **LOCK IN** or **RANDOM**. When both are ready the fight starts after a short countdown.
+- **Random** rolls through the roster for 3 seconds, slows down, then lands on a fighter and locks in.
+- **Pause menu:** `Esc` during a match opens **Resume / Rematch / Exit Match** (the game also auto-pauses when you switch tabs). The menu lists all combo skills.
+- **Combo skills** (extra damage on top of normal combo damage; each skill pays once per combo, longer skills upgrade it):
+
+| Skill | Sequence | Bonus |
+|---|---|---|
+| TRIPLE JAB | Punch, Punch, Punch | +6 |
+| TRIPLE STRIKE | Punch, Punch, Kick | +10 |
+| LOW RUSH | Down+Punch, Down+Punch, Down+Kick | +8 |
+| CHAIN KICK | Down+Punch, Punch, Kick | +9 |
+| AIR RAID | Fly Kick, Punch | +7 |
+| PUNCH CANCEL | Punch, Special | +8 |
+| KICK CANCEL | Kick, Special | +10 |
+| MEGA COMBO | Punch, Punch, Kick, Special | +20 and knockdown |
+
+Normal attacks now leave more hit-stun, so punches and kicks link into each other, and combo damage scaling is gentler (-8% per hit, minimum 50%). Edit the skills in `COMBOS` in `src/config.js`.
