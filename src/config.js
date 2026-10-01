@@ -4,10 +4,17 @@ export const STEP = 1000 / 60;                // fixed timestep (ms)
 export const ROUND_TIME = 60, ROUNDS_TO_WIN = 2;
 
 // s = startup, a = active, r = recovery (frames)
+export const BUFFER = 8, METER_MAX = 100;      // input buffer (frames), super meter size
+// Move data. s/a/r = startup/active/recovery frames, st = hit-stun, kb = knockback,
+// g = guard height: 'mid' (block high or low), 'high' (must stand-block), 'low' (must crouch-block). kd = knockdown.
 export const ATK = {
-  p: { s: 4, a: 4, r: 9, dmg: 6, reach: 75, y: -100, h: 32, st: 14, kb: 4 },
-  k: { s: 7, a: 5, r: 13, dmg: 10, reach: 95, y: -70, h: 40, st: 19, kb: 7 },
-  s: { s: 11, a: 0, r: 26 },
+  p:  { s: 4, a: 4, r: 9,  dmg: 6,  reach: 75,  y: -100, h: 32, st: 18, kb: 4, g: 'mid' },
+  k:  { s: 7, a: 5, r: 13, dmg: 10, reach: 95,  y: -70,  h: 40, st: 24, kb: 7, g: 'mid' },
+  cp: { s: 3, a: 3, r: 7,  dmg: 4,  reach: 65,  y: -60,  h: 28, st: 16, kb: 3, g: 'mid' },               // crouching jab
+  c:  { s: 8, a: 4, r: 17, dmg: 8,  reach: 105, y: -28,  h: 28, st: 40, kb: 6, g: 'low', kd: 1 },        // low sweep
+  jp: { s: 3, a: 8, r: 6,  dmg: 7,  reach: 60,  y: -105, h: 45, st: 20, kb: 4, g: 'high' },              // jump punch
+  j:  { s: 4, a: 40, r: 8, dmg: 11, reach: 70,  y: -80,  h: 85, st: 24, kb: 6, g: 'high' },              // fly kick
+  s:  { s: 11, a: 0, r: 26 },
 };
 export const CHARS = [
   { name: 'KAI', title: 'THE ALL-ROUNDER', hp: 100, spd: 1, jump: 19,
@@ -24,12 +31,12 @@ export const CHARS = [
     c: { gi: '#8d2b2b', band: '#ffd23f', skin: '#a86f4a', hair: '#222222', pants: '#3a2a2a' },
     desc: 'Slow but massive. Huge health and hard hits, plus a slow QUAKE WAVE that hurts.',
     p: { dmg: 9, reach: 80 }, k: { dmg: 14, reach: 100, s: 9 },
-    sp: { type: 'proj', name: 'QUAKE WAVE', dmg: 18, speed: 6, size: 1.6, s: 16, r: 34, cd: 110 } },
+    sp: { type: 'proj', name: 'QUAKE WAVE', kd: 1, dmg: 18, speed: 6, size: 1.6, s: 16, r: 34, cd: 110 } },
   { name: 'MIRA', title: 'THE ACROBAT', hp: 95, spd: 1.1, jump: 23,
     c: { gi: '#7b4fb3', band: '#4dd0e1', skin: '#e0ac8c', hair: '#0f0f2b', pants: '#2d2450' },
     desc: 'Leaps higher than anyone. Her RISING KICK launches upward to punish jumpers.',
     p: { dmg: 5 }, k: { dmg: 9, reach: 105 },
-    sp: { type: 'rise', name: 'RISING KICK', dmg: 15, vy: -21, s: 3, a: 14, r: 20, reach: 55, y: -170, h: 150, st: 24, kb: 6, cd: 90 } },
+    sp: { type: 'rise', name: 'RISING KICK', kd: 1, dmg: 15, vy: -21, s: 3, a: 14, r: 20, reach: 55, y: -170, h: 150, st: 24, kb: 6, cd: 90 } },
   { name: 'SORA', title: 'THE SHARPSHOOTER', hp: 90, spd: 1, jump: 21,
     c: { gi: '#3a6ea5', band: '#ff9f1c', skin: '#f1c27d', hair: '#dddddd', pants: '#1d3557' },
     desc: 'Keeps her distance. RAPID SHOT is a fast, cheap projectile you can fire again and again.',
@@ -39,14 +46,18 @@ export const CHARS = [
     c: { gi: '#e76f51', band: '#264653', skin: '#8d5524', hair: '#2b1b0e', pants: '#4a2c1a' },
     desc: 'Hits like a truck. TIGER RUSH charges forward for heavy damage if it connects.',
     p: { dmg: 8 }, k: { dmg: 12 },
-    sp: { type: 'dash', name: 'TIGER RUSH', dmg: 17, speed: 9, s: 9, a: 16, r: 22, reach: 75, y: -110, h: 90, st: 26, kb: 11, cd: 100 } },
+    sp: { type: 'dash', name: 'TIGER RUSH', kd: 1, dmg: 17, speed: 9, s: 9, a: 16, r: 22, reach: 75, y: -110, h: 90, st: 26, kb: 11, cd: 100 } },
 ];
 // Base attack table merged with a character's own overrides.
-export const movesOf = ch => ({ p: { ...ATK.p, ...ch.p }, k: { ...ATK.k, ...ch.k }, s: { ...ATK.s, ...ch.sp } });
+export const movesOf = ch => {
+  const p = { ...ATK.p, ...ch.p }, k = { ...ATK.k, ...ch.k }, pm = p.dmg / ATK.p.dmg, km = k.dmg / ATK.k.dmg;
+  const sc = (m, x) => ({ ...m, dmg: Math.max(1, Math.round(m.dmg * x)) });      // new moves scale with the fighter's strength
+  return { p, k, cp: sc(ATK.cp, pm), c: sc(ATK.c, km), jp: sc(ATK.jp, pm), j: sc(ATK.j, km), s: { ...ATK.s, ...ch.sp } };
+};
 // Character-select screen layout (canvas coordinates)
 export const PORT = { x0: 203, y: 66, w: 84, h: 84, gap: 10 };
 export const BTN = { x: 380, y: 255, w: 200, h: 50 };
 export const KEYMAP = [
-  { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH' },
-  { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon' },
+  { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyJ' },
+  { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon', x: 'Quote' },
 ];

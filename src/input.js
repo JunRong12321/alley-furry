@@ -1,9 +1,11 @@
 import { KEYMAP, W, H } from './config.js';
 
 const keys = {};
+const edges = {};          // presses since the last read: a tap shorter than one frame can never be missed
+export const clearEdges = () => { for (const k in edges) edges[k] = 0; };
 export function readPlayer(n) {
-  const map = KEYMAP[n], out = {};
-  for (const a in map) out[a] = !!keys[map[a]];
+  const map = KEYMAP[n], out = { e: {} };
+  for (const a in map) { out[a] = !!keys[map[a]]; out.e[a] = !!edges[map[a]]; edges[map[a]] = 0; }
   return out;
 }
 const releaseAll = () => { for (const k in keys) keys[k] = 0; };
@@ -12,7 +14,7 @@ export function initInput({ canvas, onKey, onPoint, unlock }) {
   addEventListener('keydown', e => {
     if (e.code.startsWith('Arrow') || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
     if (e.repeat) return;
-    keys[e.code] = 1; unlock(); onKey(e.code);
+    keys[e.code] = edges[e.code] = 1; unlock(); onKey(e.code);
   });
   addEventListener('keyup', e => { keys[e.code] = 0; });
   // Prevents "stuck" keys when the window loses focus mid-fight.
@@ -24,7 +26,7 @@ export function initInput({ canvas, onKey, onPoint, unlock }) {
     b.addEventListener('pointerdown', e => {
       e.preventDefault();
       try { b.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-      keys[k] = 1; unlock(); onKey(k);
+      keys[k] = edges[k] = 1; unlock(); onKey(k);
     });
     b.addEventListener('pointerup', up);
     b.addEventListener('pointercancel', up);

@@ -1,12 +1,12 @@
 // Pure game logic. No DOM, no canvas: it can run (and be tested) in Node.
 import { W, ROUND_TIME, ROUNDS_TO_WIN, CHARS, PORT, BTN } from './config.js';
 import { createFighter, resetFighter, updateFighter } from './fighter.js';
-import { hurtbox, applyHit } from './combat.js';
+import { hurtbox, applyHit, canHit } from './combat.js';
 import { cpuInput } from './ai.js';
 
 export function createWorld(sfx = () => {}) {
   return { mode: 'menu', fighters: [], fireballs: [], t: 0, tick: 0, time: ROUND_TIME, round: 0,
-           winner: -1, shake: 0, hitstop: 0, twoP: false, picks: [0, 1], sel: { slot: 0, pick: [null, null] }, sfx };
+           winner: -1, shake: 0, hitstop: 0, fx: [], banner: null, twoP: false, picks: [0, 1], sel: { slot: 0, pick: [null, null] }, sfx };
 }
 // ----- character select -----
 export function openSelect(w, twoP) {
@@ -40,10 +40,10 @@ export function startMatch(w, twoP, picks = w.picks) {
 }
 export function newRound(w) {
   w.fighters.forEach((f, i) => resetFighter(f, i ? 660 : 300, i ? -1 : 1));
-  Object.assign(w, { fireballs: [], mode: 'intro', t: 0, tick: 0, time: ROUND_TIME, hitstop: 0 });
+  Object.assign(w, { fireballs: [], fx: [], banner: null, mode: 'intro', t: 0, tick: 0, time: ROUND_TIME, hitstop: 0 });
   w.round++;
 }
-export function toMenu(w) { Object.assign(w, { mode: 'menu', fighters: [], fireballs: [], shake: 0, hitstop: 0 }); }
+export function toMenu(w) { Object.assign(w, { mode: 'menu', fighters: [], fireballs: [], fx: [], banner: null, shake: 0, hitstop: 0 }); }
 
 function physics(w, readInput, live) {
   w.fighters.forEach((f, n) => {
@@ -58,9 +58,9 @@ function physics(w, readInput, live) {
   }
   w.fireballs = w.fireballs.filter(fb => {
     fb.x += fb.v;
-    const target = fb.owner === a ? b : a, h = hurtbox(target);
-    if (target.hp > 0 && fb.x > h.x1 - 14 && fb.x < h.x2 + 14 && fb.y > h.y1 && fb.y < h.y2) {
-      applyHit(w, fb, target, fb.dmg, 22, 8); return false;
+    const target = fb.owner === a ? b : a, h = hurtbox(target), m = 14 * (fb.size || 1);
+    if (canHit(target) && fb.x > h.x1 - m && fb.x < h.x2 + m && fb.y > h.y1 && fb.y < h.y2) {
+      applyHit(w, fb, target, { dmg: fb.dmg, st: fb.st, kb: fb.kb, kd: fb.kd, chip: fb.chip, g: 'mid', x: fb.x, y: fb.y }); return false;
     }
     return fb.x > -50 && fb.x < W + 50;
   });
@@ -86,5 +86,7 @@ export function step(w, readInput) {
     }
   }
   w.shake *= 0.85;
+  w.fx.forEach(e => e.t++); w.fx = w.fx.filter(e => e.t < 14);
+  if (w.banner && --w.banner.t <= 0) w.banner = null;
   w.fighters.forEach(f => { if (f.flash > 0) f.flash--; if (f.show > f.hp) f.show = Math.max(f.hp, f.show - 0.35); });
 }

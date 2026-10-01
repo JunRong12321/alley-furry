@@ -41,26 +41,30 @@ function drawFighter(g, f) {
   g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath();
   g.ellipse(f.x, GY + 4, Math.max(12, 38 - (GY - f.y) / 10), 8, 0, 0, 7); g.fill();
   g.save(); g.translate(f.x, f.y); g.scale(f.face, 1);
-  if (ko) { g.translate(0, f.y >= GY ? -24 : 0); g.rotate(f.y >= GY ? -1.5 : -.8); } else if (f.stun > 0) g.rotate(-.15);
+  if (ko || f.kd > 0) { g.translate(0, f.y >= GY ? -24 : 0); g.rotate(f.y >= GY ? -1.5 : -.8); } else if (f.stun > 0) g.rotate(-.15);
   const lh = 52 * ch, top = -100 * ch;
   g.fillStyle = c.gi; g.fillRect(-32, top + 8, 12, 38 * ch);                 // back arm
   g.fillStyle = c.pants; g.fillRect(-22 - w, -lh, 18, lh);                   // back leg
   g.fillStyle = c.gi; g.fillRect(-26, top, 52, -top - lh + 6);               // torso
   g.fillStyle = c.band; g.fillRect(-26, -lh - 8, 52, 8);                     // belt
   g.fillStyle = c.pants;
-  if (f.atk === 'k' && ext) { g.fillRect(4, -lh - 6, A.reach - 14, 16); g.fillStyle = c.skin; g.fillRect(A.reach - 26, -lh - 10, 18, 24); }
+  if (['k', 'c', 'j'].includes(f.atk) && ext) {
+    if (f.atk === 'j') { g.save(); g.translate(10, -lh + 4); g.rotate(.55); g.fillRect(0, -8, A.reach - 6, 16); g.fillStyle = c.skin; g.fillRect(A.reach - 18, -10, 16, 20); g.restore(); }   // fly kick: leg angled down
+    else { const ly = f.atk === 'c' ? -24 : -lh - 6; g.fillRect(4, ly, A.reach - 14, 16); g.fillStyle = c.skin; g.fillRect(A.reach - 26, ly - 4, 18, 24); }
+  }
   else g.fillRect(4 + w, -lh, 18, lh);
   g.fillStyle = c.skin; g.fillRect(-14, top - 30, 28, 28);                   // head
   g.fillStyle = c.hair; g.fillRect(-15, top - 34, 30, 10);
   g.fillStyle = c.band; g.fillRect(-15, top - 22, 30, 6); g.fillRect(-26, top - 20, 12, 4);
   g.fillStyle = '#111'; g.fillRect(5, top - 14, 6, 4);
-  if (f.atk === 'p' && ext) { g.fillStyle = c.gi; g.fillRect(10, top + 10, A.reach - 16, 14); g.fillStyle = c.skin; g.fillRect(A.reach - 22, top + 6, 20, 22); }
+  if (['p', 'cp', 'jp'].includes(f.atk) && ext) { g.fillStyle = c.gi; g.fillRect(10, top + 10, A.reach - 16, 14); g.fillStyle = c.skin; g.fillRect(A.reach - 22, top + 6, 20, 22); }
   else if (f.atk === 's' && f.mv.s.type === 'rise') { g.fillStyle = c.gi; g.fillRect(10, top - 50, 14, 70); g.fillStyle = c.skin; g.fillRect(10, top - 64, 14, 16); }
   else if (f.atk === 's') {
     g.fillStyle = c.gi; g.fillRect(10, top + 14, 44, 14); g.fillStyle = c.skin; g.fillRect(46, top + 11, 16, 20);
     if (f.t >= f.mv.s.s - 3) { g.fillStyle = 'rgba(255,180,60,.6)'; g.beginPath(); g.arc(66, top + 21, 16, 0, 7); g.fill(); }
   } else if (f.block) { g.fillStyle = c.gi; g.fillRect(12, top - 8, 14, 46); g.fillStyle = c.skin; g.fillRect(12, top - 14, 14, 12); }
   else { g.fillStyle = c.gi; g.fillRect(12, top + 10, 14, 36 * ch); g.fillStyle = c.skin; g.fillRect(12, top + 10 + 36 * ch, 14, 12); }
+  if (f.sup && f.atk === 's') { g.fillStyle = 'rgba(255,220,80,.35)'; g.fillRect(-40, top - 40, 80, -top + 40); }   // super aura
   if (f.flash > 0) { g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(-34, top - 36, 68, -top + 36); }
   g.restore();
 }
@@ -75,12 +79,33 @@ function drawFireball(g, b) {
   g.fillStyle = r; g.beginPath(); g.arc(b.x, b.y, 24 * z, 0, 7); g.fill();
 }
 
+function drawFx(g, w) {                                  // hit sparks: yellow = counter, blue = blocked
+  w.fx.forEach(e => {
+    const a = 1 - e.t / 14, r = 10 + e.t * 3.5, col = e.k === 'block' ? '125,214,255' : e.k === 'counter' ? '255,210,63' : '255,243,176';
+    g.strokeStyle = `rgba(${col},${a})`; g.lineWidth = 3; g.beginPath();
+    for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4; g.moveTo(e.x + Math.cos(an) * r * .5, e.y + Math.sin(an) * r * .5); g.lineTo(e.x + Math.cos(an) * r, e.y + Math.sin(an) * r); }
+    g.stroke();
+  });
+}
+function drawCombo(g, w) {
+  w.fighters.forEach((f, n) => {
+    if (f.cmb >= 2 && f.cmbT > 0) {                      // shown on the side of the attacker
+      const x = n ? 150 : W - 150;
+      text(g, f.cmb + ' HITS!', x, 190, 22, '#ffd23f'); text(g, f.cmbDmg + ' DAMAGE', x, 216, 10, '#fff');
+    }
+  });
+  if (w.banner) text(g, w.banner.text, W / 2, 170, 22, '#ff9a4d');
+}
 function drawHud(g, w) {
   w.fighters.forEach((f, n) => {
     const bw = 380, x = n ? W - 40 - bw : 40;
     g.fillStyle = '#000'; g.fillRect(x - 4, 24, bw + 8, 30);
     const bar = (v, col) => { const ww = bw * v / f.maxHp; g.fillStyle = col; g.fillRect(n ? x : x + bw - ww, 28, ww, 22); };
     bar(f.show, '#ffd23f'); bar(f.hp, f.hp > .3 * f.maxHp ? '#3ddc84' : '#ff4d4d');
+    const mw = 190, fw = mw * f.meter / 100, full = f.meter >= 100;                       // super meter
+    g.fillStyle = '#000'; g.fillRect(n ? x : x + bw - mw, 58, mw, 10);
+    g.fillStyle = full ? '#ffd23f' : '#4cc9f0'; g.fillRect(n ? x : x + bw - fw, 58, fw, 10);
+    if (full) text(g, 'SUPER!', n ? x + mw + 10 : x + bw - mw - 10, 68, 8, '#ffd23f', n ? 'left' : 'right');
     text(g, f.name, n ? x + bw : x, 82, 14, '#fff', n ? 'right' : 'left');
     for (let i = 0; i < 2; i++) {
       g.fillStyle = i < f.wins ? '#ffd23f' : '#000'; g.strokeStyle = '#fff'; g.lineWidth = 2;
@@ -99,9 +124,10 @@ function drawMenu(g) {
     text(g, s, W / 2, b, 18);
   });
   text(g, 'Click / tap an option, or press 1 or 2', W / 2, 364, 10, '#ffd58a');
-  text(g, 'P1  WASD  F punch  G kick  H fireball', W / 2, 400, 11, '#ddd');
-  text(g, 'P2  ARROWS  K punch  L kick  ; fireball', W / 2, 425, 11, '#ddd');
-  text(g, 'Hold back to block  -  Esc for menu', W / 2, 455, 11, '#ddd');
+  text(g, 'P1  WASD  F punch  G kick  H special  J super', W / 2, 395, 10, '#ddd');
+  text(g, "P2  ARROWS  K punch  L kick  ; special  ' super", W / 2, 417, 10, '#ddd');
+  text(g, 'Hold back = block (stand: overheads, crouch: sweeps)', W / 2, 445, 9, '#c9b8e0');
+  text(g, 'Down+Kick = sweep   Jump+Kick = fly kick   Esc = menu', W / 2, 465, 9, '#c9b8e0');
 }
 
 // ---------- character select ----------
@@ -178,7 +204,7 @@ export function render(g, w) {
   if (w.mode === 'menu') drawMenu(g);
   else if (w.mode === 'select') drawSelect(g, w);
   else {
-    w.fighters.forEach(f => drawFighter(g, f)); w.fireballs.forEach(b => drawFireball(g, b)); drawHud(g, w);
+    w.fighters.forEach(f => drawFighter(g, f)); w.fireballs.forEach(b => drawFireball(g, b)); drawFx(g, w); drawHud(g, w); drawCombo(g, w);
     if (w.mode === 'intro') text(g, w.t < 70 ? 'ROUND ' + w.round : 'FIGHT!', W / 2, 250, w.t < 70 ? 40 : 52, w.t < 70 ? '#fff' : '#ff5a3c');
     if (w.mode === 'end') {
       text(g, w.time <= 0 && w.fighters.every(f => f.hp > 0) ? 'TIME UP' : 'K.O.', W / 2, 230, 56, '#ff5a3c');

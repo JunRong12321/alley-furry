@@ -1,11 +1,11 @@
 import { W, H, STEP } from './config.js';
 import { createWorld, startMatch, toMenu, step, openSelect, cycle, confirm, selectClick } from './game.js';
-import { readPlayer, initInput } from './input.js';
+import { readPlayer, initInput, clearEdges } from './input.js';
 import { sfx, unlockAudio } from './audio.js';
 import { render, text } from './render.js';
 
 const canvas = document.getElementById('game');
-const g = canvas.getContext('2d');
+const g = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const world = createWorld(sfx);
 
 function onKey(code) {
@@ -30,6 +30,8 @@ initInput({ canvas, onKey, onPoint, unlock: unlockAudio });
 let last = 0, acc = 0, errors = 0;
 function frame(t) {
   try {
+    if (world.mode !== 'fight' && world.mode !== 'end') clearEdges();      // don't carry menu clicks into the fight
+    document.body.dataset.mode = world.mode;
     acc += Math.min(100, t - last); last = t;         // fixed 60 updates/sec on any screen refresh rate
     while (acc >= STEP) { step(world, readPlayer); acc -= STEP; }
     render(g, world);
