@@ -1,5 +1,5 @@
-import { W, H, STEP, MENU_BUTTONS, diffCardRect, MATCH_DIFF, DOJO_START, DOJO_FIGHTER_PREV, DOJO_FIGHTER_NEXT, dojoComboRect, SETTINGS_ITEMS, settingsRect, settingSliderRect, INTRO_ROUND_AT, INTRO_READY_AT, INTRO_FIGHT_AT } from './config.js';
-import { openDifficulty, cycleDifficulty, difficultyConfirm, pauseItems, createWorld, startMatch, toMenu, step, openSelect, selMove, selLock, selRandom, selectClick, pause, resume, pauseChoose, pauseClick, openSettings, closeSettings, settingsChoose, openTutorial, tutorialChoose, openDojo, dojoChangeFighter, dojoChangeCombo, startDojo, resetDojo } from './game.js';
+import { W, H, STEP, THEMES, MENU_BUTTONS, diffCardRect, MATCH_DIFF, DOJO_START, DOJO_FIGHTER_PREV, DOJO_FIGHTER_NEXT, dojoComboRect, SETTINGS_ITEMS, settingsRect, settingSliderRect, INTRO_ROUND_AT, INTRO_READY_AT, INTRO_FIGHT_AT } from './config.js';
+import { themeMove, themePick, themeRandom, themeConfirm, themeClick, openDifficulty, cycleDifficulty, difficultyConfirm, pauseItems, createWorld, startMatch, toMenu, step, openSelect, selMove, selLock, selRandom, selectClick, pause, resume, pauseChoose, pauseClick, openSettings, closeSettings, settingsChoose, openTutorial, tutorialChoose, openDojo, dojoChangeFighter, dojoChangeCombo, startDojo, resetDojo } from './game.js';
 import { readPlayer, initInput, clearEdges, pollGamepads } from './input.js';
 import { sfx, announcer, announceWinner, getAudioPreferences, unlockAudio, setAudioPreferences, setAudioMode } from './audio.js';
 import { render } from './render.js';
@@ -11,6 +11,8 @@ world.audio = getAudioPreferences();
 try { world.reducedMotion = localStorage.getItem('pixel-brawl-reduced-motion') === 'true'; } catch {}
 let savedDifficulty = world.difficulty;                         // the last used CPU level is remembered between visits
 try { const v = Number(localStorage.getItem('pixel-brawl-difficulty')); if (Number.isInteger(v) && v >= 0 && v <= 2) world.difficulty = savedDifficulty = v; } catch {}
+let savedTheme = world.theme;
+try { const v = Number(localStorage.getItem('pixel-brawl-theme')); if (Number.isInteger(v) && v >= 0 && v < THEMES.length) world.theme = savedTheme = v; } catch {}
 
 const FIGHTING = ['intro', 'fight', 'end', 'dojo'];
 const inBox = (x, y, b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
@@ -20,8 +22,8 @@ function updateMusicScene() {
   let scene = world.mode;
   if (scene === 'pause') scene = world.back;
   else if (scene === 'settings') scene = world.settingsBack === 'pause' ? world.back : world.settingsBack;
-  const next = FIGHTING.includes(scene) ? 'fight' : 'menu';
-  if (next !== lastMusicScene) { lastMusicScene = next; setAudioMode(next); }
+  const next = FIGHTING.includes(scene) || scene === 'theme' ? 'fight' : 'menu', key = next + world.theme;
+  if (key !== lastMusicScene) { lastMusicScene = key; setAudioMode(next, world.theme); }
 }
 const unlock = () => { unlockAudio(); syncAudio(); updateMusicScene(); };
 function selectKey(code) {
@@ -50,6 +52,7 @@ function onKey(code) {
     else if (m === 'pause') { if (world.exitConfirm) world.exitConfirm = false; else resume(world); }
     else if (m === 'settings') closeSettings(world);
     else if (m === 'select' && !world.twoP) openDifficulty(world);  // back one step
+    else if (m === 'theme') openSelect(world, world.twoP);
     else toMenu(world);
     return;
   }
@@ -70,6 +73,13 @@ function onKey(code) {
     else if (/^(Digit|Numpad)[1-3]$/.test(code)) { world.difficulty = Number(code.slice(-1)) - 1; difficultyConfirm(world); }
     else if (code === 'Enter' || code === 'Space' || code === 'KeyF' || code === 'KeyK') difficultyConfirm(world);
   } else if (m === 'select') selectKey(code);
+  else if (m === 'theme') {
+    if (code === 'ArrowLeft' || code === 'KeyA' || code === 'ArrowUp' || code === 'KeyW') themeMove(world, -1);
+    else if (code === 'ArrowRight' || code === 'KeyD' || code === 'ArrowDown' || code === 'KeyS') themeMove(world, 1);
+    else if (/^(Digit|Numpad)[1-5]$/.test(code)) themePick(world, Number(code.slice(-1)) - 1);
+    else if (code === 'KeyR' || code === 'KeyJ' || code === 'Quote') themeRandom(world);
+    else if (code === 'Enter' || code === 'Space' || code === 'KeyF' || code === 'KeyK') themeConfirm(world);
+  }
   else if (m === 'dojoSelect') {
     if (code === 'ArrowLeft' || code === 'KeyA') dojoChangeFighter(world, -1);
     else if (code === 'ArrowRight' || code === 'KeyD') dojoChangeFighter(world, 1);
@@ -123,6 +133,8 @@ function onPoint(x, y) {
     else if (inBox(x, y, MENU_BUTTONS.settings)) { world.menuIndex = 4; openSettings(world); }
   } else if (m === 'select') {
     if (x < 110 && y < 50) { if (world.twoP) toMenu(world); else openDifficulty(world); } else selectClick(world, x, y);
+  } else if (m === 'theme') {
+    if (x < 110 && y < 50) openSelect(world, world.twoP); else themeClick(world, x, y);
   } else if (m === 'difficulty') {
     if (x < 110 && y < 50) toMenu(world);
     else for (let i = 0; i < 3; i++) if (inBox(x, y, diffCardRect(i))) { world.difficulty = i; difficultyConfirm(world); return; }
@@ -183,6 +195,7 @@ function frame(t) {
       acc -= STEP;
     }
     if (world.difficulty !== savedDifficulty) { savedDifficulty = world.difficulty; try { localStorage.setItem('pixel-brawl-difficulty', String(savedDifficulty)); } catch {} }
+    if (world.theme !== savedTheme) { savedTheme = world.theme; try { localStorage.setItem('pixel-brawl-theme', String(savedTheme)); } catch {} }
     updateMusicScene();
     render(g, world);
   } catch (err) {

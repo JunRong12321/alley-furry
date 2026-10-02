@@ -1,18 +1,35 @@
 // Canvas renderer. It only reads game state and draws pixels.
-import { pauseItems } from './game.js';
-import { W, H, GY, ROUND_TIME, CHARS, PORT, randomBoxRect, movesOf, selButtons, PAUSE_ITEMS, pauseRect, COMBOS, MOVE_NAMES, MENU_BUTTONS, DOJO_START, DOJO_FIGHTER_PREV, DOJO_FIGHTER_NEXT, dojoComboRect, DIFFICULTIES, DIFFICULTY_INFO, diffCardRect, SETTINGS_ITEMS, settingsRect, settingSliderRect, exitChoiceRect, INTRO_READY_AT, INTRO_FIGHT_AT } from './config.js';
+import { pauseItems, DOJO_NEXT_DELAY } from './game.js';
+import { W, H, GY, ROUND_TIME, CHARS, PORT, randomBoxRect, movesOf, selButtons, PAUSE_ITEMS, pauseRect, COMBOS, THEMES, themeCardRect, MOVE_NAMES, MENU_BUTTONS, DOJO_START, DOJO_FIGHTER_PREV, DOJO_FIGHTER_NEXT, dojoComboRect, DIFFICULTIES, DIFFICULTY_INFO, diffCardRect, SETTINGS_ITEMS, settingsRect, settingSliderRect, exitChoiceRect, INTRO_READY_AT, INTRO_FIGHT_AT } from './config.js';
 
 const FONT = '"Press Start 2P", monospace';
-let bg;
+let renderFrame = 0;
 export function text(g, value, x, y, size = 12, col = '#fff', align = 'center') {
   g.font = `${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'alphabetic';
   g.fillStyle = '#000'; g.fillText(value, x + 2, y + 2); g.fillStyle = col; g.fillText(value, x, y);
 }
-function makeBackground() {
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const c = cv.getContext('2d'), sky = c.createLinearGradient(0, 0, 0, GY);
-  sky.addColorStop(0, '#1b0f3a'); sky.addColorStop(.58, '#8a2b5c'); sky.addColorStop(1, '#ff9a4d');
-  c.fillStyle = sky; c.fillRect(0, 0, W, H); c.fillStyle = '#ffd58a'; c.beginPath(); c.arc(700, 330, 92, 0, 7); c.fill();
+const bgCache = new Map();
+function seeded(seed) { let v = seed >>> 0; return () => (v = (v * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function skyGradient(c, stops) {
+  const sky = c.createLinearGradient(0, 0, 0, GY);
+  stops.forEach((col, i) => sky.addColorStop(i / (stops.length - 1), col));
+  c.fillStyle = sky; c.fillRect(0, 0, W, H);
+}
+function ridge(c, col, base, amp, freq, phase) {
+  c.fillStyle = col; c.beginPath(); c.moveTo(0, GY);
+  for (let x = 0; x <= W; x += 8) c.lineTo(x, base - amp * (Math.sin(x * freq + phase) * .6 + Math.sin(x * freq * 2.7 + phase * 2) * .4));
+  c.lineTo(W, GY); c.closePath(); c.fill();
+}
+function planks(c, top, bottom, line, lip) {
+  c.fillStyle = top; c.fillRect(0, GY, W, H - GY);
+  c.strokeStyle = line; c.lineWidth = 2;
+  for (let y = GY + 14; y < H; y += 16) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  for (let row = 0; row < 5; row++) for (let x = (row % 2) * 60; x < W; x += 120) { c.beginPath(); c.moveTo(x, GY + row * 16); c.lineTo(x, GY + row * 16 + 14); c.stroke(); }
+  c.fillStyle = bottom; c.fillRect(0, H - 8, W, 8); c.fillStyle = lip; c.fillRect(0, GY, W, 4);
+}
+function paintCity(c) {
+  skyGradient(c, ['#1b0f3a', '#8a2b5c', '#ff9a4d']);
+  c.fillStyle = '#ffd58a'; c.beginPath(); c.arc(700, 330, 92, 0, 7); c.fill();
   for (const [col, min, max, lit] of [['#4a1d5c', 115, 250, false], ['#241040', 55, 190, true]]) {
     for (let x = -10; x < W;) {
       const z = Math.sin(x * .091 + min) * .5 + .5, width = 54 + z * 48, height = min + z * (max - min);
@@ -27,7 +44,145 @@ function makeBackground() {
   for (let i = -12; i <= 12; i++) { c.beginPath(); c.moveTo(W / 2 + i * 20, GY); c.lineTo(W / 2 + i * 140, H); c.stroke(); }
   c.fillStyle = '#5a2f6b'; c.fillRect(0, GY, W, 4);
   c.save(); c.shadowColor = '#ff3d6e'; c.shadowBlur = 18; c.fillStyle = '#ff3d6e'; c.font = 'bold 28px monospace'; c.fillText('RAMEN', 70, 330); c.restore();
-  return cv;
+}
+function paintDojo(c) {
+  const rnd = seeded(7);
+  skyGradient(c, ['#2d1b4e', '#a9487a', '#ffb89a', '#ffe1c4']);
+  c.fillStyle = 'rgba(255,244,214,.9)'; c.beginPath(); c.arc(250, 180, 58, 0, 7); c.fill();
+  ridge(c, '#8f5a8c', 300, 70, .006, 1); ridge(c, '#5e3366', 350, 55, .009, 3);
+  c.fillStyle = '#2a1430';                                                  // pagoda
+  for (let k = 0; k < 4; k++) {
+    const y = GY - 60 - k * 62, half = 120 - k * 22;
+    c.fillRect(700 - half * .62, y - 34, half * 1.24, 40);
+    c.beginPath(); c.moveTo(700 - half - 18, y - 30); c.lineTo(700 + half + 18, y - 30); c.lineTo(700 + half * .55, y - 58); c.lineTo(700 - half * .55, y - 58); c.closePath(); c.fill();
+    c.fillStyle = '#ffcf7a'; for (let wx = -2; wx <= 2; wx++) c.fillRect(700 + wx * half * .22 - 4, y - 24, 8, 14); c.fillStyle = '#2a1430';
+  }
+  c.fillRect(696, GY - 330, 8, 60);
+  c.fillStyle = '#b8323f'; c.fillRect(70, GY - 170, 14, 170); c.fillRect(250, GY - 170, 14, 170);   // torii gate
+  c.fillRect(48, GY - 182, 238, 16); c.fillRect(64, GY - 146, 206, 10);
+  c.fillStyle = '#2a1430'; c.fillRect(40, GY - 192, 254, 10);
+  for (const tx of [430, 900]) {                                            // cherry trees
+    c.fillStyle = '#3b1f2b'; c.fillRect(tx - 8, GY - 150, 16, 150);
+    for (let i = 0; i < 60; i++) {
+      const a = rnd() * Math.PI * 2, r = rnd() * 80;
+      c.fillStyle = ['#ff9ec7', '#ffc2dc', '#f27bb0'][i % 3]; c.beginPath(); c.arc(tx + Math.cos(a) * r, GY - 175 + Math.sin(a) * r * .55, 10 + rnd() * 10, 0, 7); c.fill();
+    }
+  }
+  planks(c, '#7a4a2e', '#4e2c1d', '#5a341f', '#b9784a');
+}
+function paintVolcano(c) {
+  const rnd = seeded(11);
+  skyGradient(c, ['#120303', '#4a0d07', '#a3300c', '#ff7b1c']);
+  for (let i = 0; i < 14; i++) { c.fillStyle = `rgba(30,10,10,${.3 + rnd() * .3})`; c.beginPath(); c.arc(rnd() * W, 40 + rnd() * 140, 40 + rnd() * 60, 0, 7); c.fill(); }
+  c.fillStyle = '#2b0f0b'; c.beginPath(); c.moveTo(300, GY); c.lineTo(560, 190); c.lineTo(660, 190); c.lineTo(940, GY); c.closePath(); c.fill();
+  const glow = c.createRadialGradient(610, 190, 4, 610, 190, 110); glow.addColorStop(0, 'rgba(255,200,80,.95)'); glow.addColorStop(1, 'rgba(255,90,20,0)');
+  c.fillStyle = glow; c.fillRect(480, 80, 260, 220);
+  c.strokeStyle = '#ff6a00'; c.lineWidth = 6; c.lineCap = 'round';
+  for (const [x0, x1] of [[590, 520], [620, 680], [640, 760]]) { c.beginPath(); c.moveTo(x0, 196); c.quadraticCurveTo((x0 + x1) / 2 + 20, 300, x1, GY - 20); c.stroke(); }
+  ridge(c, '#1a0806', 400, 40, .011, 2);
+  c.fillStyle = '#1c0d0a'; c.fillRect(0, GY, W, H - GY);
+  c.strokeStyle = '#ff5a1f'; c.lineWidth = 2;
+  for (let i = 0; i < 18; i++) { let x = rnd() * W, y = GY + 6 + rnd() * 50; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 4; k++) { x += 10 + rnd() * 18; y += (rnd() - .5) * 10; c.lineTo(x, Math.min(H - 4, Math.max(GY + 4, y))); } c.stroke(); }
+  c.fillStyle = '#ff7b1c'; c.fillRect(0, GY, W, 3);
+}
+function paintHarbor(c) {
+  const rnd = seeded(23);
+  skyGradient(c, ['#050b1f', '#0f1f42', '#24406f']);
+  for (let i = 0; i < 90; i++) { c.fillStyle = `rgba(255,255,255,${.3 + rnd() * .6})`; c.fillRect(rnd() * W, rnd() * 260, 2, 2); }
+  c.fillStyle = '#f4f1d0'; c.beginPath(); c.arc(760, 120, 46, 0, 7); c.fill();
+  c.fillStyle = '#0b1630';
+  for (let x = 0; x < W; x += 36) { const h = 40 + Math.abs(Math.sin(x * .13)) * 70; c.fillRect(x, GY - 70 - h, 32, h); }
+  c.fillStyle = '#ffd58a'; for (let i = 0; i < 40; i++) c.fillRect(rnd() * W, GY - 80 - rnd() * 90, 3, 4);
+  c.strokeStyle = '#081226'; c.lineWidth = 8;                                // cranes
+  for (const x of [130, 330]) { c.beginPath(); c.moveTo(x, GY - 70); c.lineTo(x, GY - 280); c.lineTo(x + 150, GY - 280); c.moveTo(x - 40, GY - 280); c.lineTo(x, GY - 240); c.stroke(); }
+  c.fillStyle = '#0d2547'; c.fillRect(0, GY - 70, W, 70);
+  c.fillStyle = 'rgba(244,241,208,.5)'; for (let k = 0; k < 9; k++) c.fillRect(760 - 40 + Math.sin(k) * 14, GY - 64 + k * 7, 80 - k * 6, 2);
+  c.fillStyle = '#081226'; c.beginPath(); c.moveTo(520, GY - 60); c.lineTo(700, GY - 60); c.lineTo(680, GY - 40); c.lineTo(540, GY - 40); c.closePath(); c.fill(); c.fillRect(590, GY - 90, 40, 30);
+  planks(c, '#3d2f2a', '#241b18', '#2a201c', '#6b5446');
+  c.fillStyle = '#1a1412'; for (const x of [40, 480, 920]) { c.fillRect(x - 10, GY - 22, 20, 24); c.fillRect(x - 13, GY - 26, 26, 6); }
+}
+function paintRooftop(c) {
+  const rnd = seeded(5);
+  skyGradient(c, ['#110d22', '#2e2550', '#55487a']);
+  for (let i = 0; i < 16; i++) { c.fillStyle = `rgba(20,16,38,${.35 + rnd() * .3})`; c.beginPath(); c.ellipse(rnd() * W, 30 + rnd() * 130, 80 + rnd() * 70, 26 + rnd() * 18, 0, 0, 7); c.fill(); }
+  for (const [col, min, max, lights] of [['#241d3d', 160, 300, '#5d78a8'], ['#151025', 90, 230, '#9fd3ff']]) {
+    for (let x = -20; x < W;) {
+      const width = 50 + rnd() * 60, height = min + rnd() * (max - min);
+      c.fillStyle = col; c.fillRect(x, GY - 40 - height, width, height);
+      c.fillStyle = lights; for (let y = GY - 30 - height; y < GY - 50; y += 18) for (let wx = x + 6; wx < x + width - 8; wx += 14) if (rnd() < .22) c.fillRect(wx, y, 6, 8);
+      x += width + 6;
+    }
+  }
+  c.fillStyle = '#0e0a1a'; c.fillRect(90, GY - 150, 70, 80); c.beginPath(); c.moveTo(84, GY - 150); c.lineTo(125, GY - 182); c.lineTo(166, GY - 150); c.fill();
+  c.fillRect(100, GY - 70, 6, 30); c.fillRect(144, GY - 70, 6, 30);
+  c.fillRect(820, GY - 230, 6, 190); c.fillStyle = '#ff3d6e'; c.fillRect(818, GY - 236, 10, 8);
+  c.fillStyle = '#2c2838'; c.fillRect(0, GY - 40, W, 40);
+  c.strokeStyle = '#4c4560'; c.lineWidth = 3; c.beginPath(); for (let x = 0; x <= W; x += 40) { c.moveTo(x, GY - 40); c.lineTo(x, GY - 8); } c.moveTo(0, GY - 40); c.lineTo(W, GY - 40); c.stroke();
+  c.fillStyle = '#3a3549'; c.fillRect(0, GY, W, H - GY);
+  c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 2; for (let x = 0; x < W; x += 80) { c.beginPath(); c.moveTo(x, GY); c.lineTo(x - 30, H); c.stroke(); }
+  c.fillStyle = '#5b5470'; c.fillRect(0, GY, W, 4);
+}
+const STAGE_PAINTERS = { city: paintCity, dojo: paintDojo, volcano: paintVolcano, harbor: paintHarbor, rooftop: paintRooftop };
+function stageBackground(index) {
+  const theme = THEMES[index] || THEMES[0];
+  if (!bgCache.has(theme.id)) {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    STAGE_PAINTERS[theme.id](cv.getContext('2d'));
+    bgCache.set(theme.id, cv);
+  }
+  return bgCache.get(theme.id);
+}
+function drawAmbient(g, index, frame, reducedMotion) {
+  if (reducedMotion) return;
+  const id = (THEMES[index] || THEMES[0]).id;
+  if (id === 'dojo') {                                                      // falling blossom petals
+    g.fillStyle = '#ffc2dc';
+    for (let i = 0; i < 26; i++) {
+      const x = ((i * 137 + frame * (.5 + (i % 3) * .2) + Math.sin(frame * .02 + i) * 30) % (W + 40)) - 20, y = (i * 53 + frame * (.7 + (i % 4) * .15)) % (GY + 20);
+      g.save(); g.translate(x, y); g.rotate(frame * .03 + i); g.beginPath(); g.ellipse(0, 0, 4, 2.4, 0, 0, 7); g.fill(); g.restore();
+    }
+  } else if (id === 'volcano') {                                            // rising embers
+    for (let i = 0; i < 30; i++) {
+      const x = (i * 97 + Math.sin(frame * .03 + i) * 18 + W) % W, y = GY - ((i * 61 + frame * (.8 + (i % 4) * .35)) % GY);
+      g.fillStyle = i % 3 ? '#ff9a3c' : '#ffd23f'; g.fillRect(x, y, 3, 3);
+    }
+  } else if (id === 'harbor') {                                             // shimmering water
+    g.fillStyle = 'rgba(160,200,255,.25)';
+    for (let i = 0; i < 16; i++) g.fillRect((i * 83 + frame * .6) % (W + 60) - 60, GY - 62 + (i % 6) * 10, 36, 2);
+  } else if (id === 'rooftop') {                                            // rain and the odd lightning flash
+    g.strokeStyle = 'rgba(190,200,255,.35)'; g.lineWidth = 1; g.beginPath();
+    for (let i = 0; i < 70; i++) { const x = (i * 71 + frame * 3) % (W + 80) - 40, y = (i * 113 + frame * 14) % H; g.moveTo(x, y); g.lineTo(x - 6, y + 16); }
+    g.stroke();
+    if (frame % 420 < 5) { g.fillStyle = 'rgba(230,230,255,.18)'; g.fillRect(0, 0, W, H); }
+  }
+}
+function drawThemeSelect(g, w) {
+  g.fillStyle = 'rgba(10,4,20,.55)'; g.fillRect(0, 0, W, H);
+  text(g, '< BACK', 18, 32, 8, '#c9b8e0', 'left');
+  text(g, 'CHOOSE YOUR STAGE', W / 2, 54, 20, '#ffd23f');
+  const [a, b] = w.picks.map(i => CHARS[i]);
+  text(g, `${a.name}  VS  ${b.name}`, W / 2, 86, 10, '#fff');
+  text(g, 'EVERY STAGE HAS ITS OWN BATTLE MUSIC', W / 2, 110, 7, '#c9b8e0');
+  THEMES.forEach((theme, i) => {
+    const r = themeCardRect(i), on = w.theme === i;
+    g.fillStyle = on ? 'rgba(255,255,255,.16)' : 'rgba(20,10,34,.82)'; g.fillRect(r.x, r.y, r.w, r.h);
+    g.drawImage(stageBackground(i), 0, 0, W, H, r.x + 8, r.y + 8, r.w - 16, (r.w - 16) * H / W);
+    g.strokeStyle = on ? theme.col : 'rgba(255,255,255,.25)'; g.lineWidth = on ? 4 : 2; g.strokeRect(r.x, r.y, r.w, r.h);
+    text(g, String(i + 1), r.x + 16, r.y + 26, 9, '#fff', 'left');
+    text(g, theme.name, r.x + r.w / 2, r.y + 120, 8, on ? theme.col : '#fff');
+    text(g, theme.tag, r.x + r.w / 2, r.y + 142, 5, '#c9b8e0');
+    text(g, on ? 'NOW PLAYING' : 'BGM PREVIEW', r.x + r.w / 2, r.y + 180, 6, on ? '#ffd23f' : 'rgba(255,255,255,.45)');
+    if (on) {
+      for (let k = 0; k < 5; k++) {                                         // little equaliser to show the track is live
+        const h = 6 + Math.abs(Math.sin(renderFrame * .12 + k * 1.3)) * (w.reducedMotion ? 0 : 14);
+        g.fillStyle = theme.col; g.fillRect(r.x + r.w / 2 - 28 + k * 12, r.y + 216 - h, 8, h);
+      }
+    }
+  });
+  drawFighter(g, { ...a, x: 120, y: 520, groundY: 520, face: 1, walk: 0, hp: 1 }, .62, true, w.reducedMotion, true, renderFrame);
+  drawFighter(g, { ...b, alt: w.picks[0] === w.picks[1], x: 840, y: 520, groundY: 520, face: -1, walk: 0, hp: 1 }, .62, true, w.reducedMotion, true, renderFrame + 60);
+  text(g, 'LEFT / RIGHT CHOOSE  ·  1-5 QUICK PICK  ·  R RANDOM', W / 2, 410, 7, '#fff');
+  text(g, 'ENTER, PUNCH OR CLICK AGAIN TO FIGHT', W / 2, 436, 8, '#ffd23f');
 }
 const OUTLINE = '#21162d';
 const fighterArtCache = new Map();
@@ -60,50 +215,110 @@ function drawFighterPortrait(g, f, image, scale = 1, withShadow = false) {
   g.drawImage(image, -width / 2, -height, width, height);
   g.restore();
 }
-function drawFighterActionFrame(g, f, sheet, pose, scale = 1, withShadow = false, frame = 0, reducedMotion = false) {
-  const floor = f.groundY ?? GY, height = 154, cellW = sheet.naturalWidth / 4, cellH = sheet.naturalHeight / 2;
-  const width = height * cellW / cellH, grounded = f.y >= floor - 2;
-  const bob = reducedMotion || !grounded ? 0 : Math.sin(frame * .085) * 1;
-  if (withShadow) {
-    g.fillStyle = `rgba(0,0,0,${grounded ? .28 : .18})`; g.beginPath();
-    g.ellipse(f.x, floor + 4, width * scale * .34, 7 * scale, 0, 0, Math.PI * 2); g.fill();
+// Action sheets are 4x2 grids rebuilt by tools/clean_sprites.py: every cell shares one floor line and body anchor,
+// and every fighter stands the same height, so all poses and fighters draw at a consistent size.
+const SHEET_FLOOR = 352 / 360, SHEET_STAND = 300 / 360, STAND_H = 142;
+const POSE = { idle: 0, punch: 1, kick: 2, guard: 3, crouch: 4, step: 5, air: 6, special: 7 };
+const ATTACK_POSE = { p: POSE.punch, jp: POSE.punch, cp: POSE.punch, k: POSE.kick, c: POSE.air, j: POSE.air, s: POSE.special };
+function sheetMotion(f, frame, reducedMotion, grounded) {
+  const m = { pose: POSE.idle, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, trail: 0 };
+  const calm = reducedMotion ? 0 : 1, down = f.hp <= 0 || f.kd > 0;
+  if (down) {
+    Object.assign(m, { pose: POSE.crouch, rot: grounded ? -1.32 : -.7, dx: grounded ? -18 : -6, dy: grounded ? -6 : 0 });
+    return m;
   }
-  g.save(); g.translate(f.x, f.y + bob); g.scale((f.face || 1) * scale, scale);
-  if (f.hp <= 0 || f.kd > 0) g.rotate(-.8);
-  g.drawImage(sheet, (pose % 4) * cellW, Math.floor(pose / 4) * cellH, cellW, cellH, -width / 2, -height, width, height);
+  if (f.stun > 0) {
+    const jolt = calm * (f.stun > 6 ? (frame % 4 < 2 ? -2.5 : 2.5) : 0);
+    Object.assign(m, { pose: f.block ? POSE.guard : POSE.idle, dx: -5 + jolt, rot: f.block ? -.03 : -.13 * calm, sx: 1.03, sy: .97 });
+    if (f.crouch) m.pose = POSE.crouch;
+    return m;
+  }
+  if (f.atk && f.mv) {
+    const move = f.mv[f.atk] || {}, s = Math.max(1, move.s || 1), a = Math.max(1, move.a || 1), r = Math.max(1, move.r || 1);
+    const air = f.atk === 'j' || f.atk === 'jp';
+    if (f.t < s) {                                                          // wind-up: lean back, load the strike
+      const p = f.t / s;
+      m.pose = f.atk === 's' ? POSE.guard : f.atk === 'cp' || f.atk === 'c' ? POSE.crouch : air ? POSE.crouch : POSE.idle;
+      m.dx = -5 * p * calm; m.rot = -.06 * p * calm; m.sx = 1 - .03 * p * calm; m.sy = 1 + .02 * p * calm;
+    } else if (f.t < s + a) {                                               // active: snap forward into the hit pose
+      const p = Math.min(1, (f.t - s + 1) / 3);
+      m.pose = ATTACK_POSE[f.atk] ?? POSE.punch;
+      m.dx = (f.atk === 's' && move.type === 'dash' ? 12 : 7) * p * calm; m.rot = .025 * calm; m.sx = 1 + .04 * p * calm; m.sy = 1 - .02 * p * calm;
+      m.trail = calm && (f.atk === 's' || f.sup) ? 1 : 0;
+      if (f.atk === 'cp') { m.sy *= .78; m.sx *= 1.06; }
+      if (f.atk === 's' && move.type === 'rise') m.dy = -6 * calm;
+    } else {                                                                // recovery: hold the pose briefly, then settle
+      const p = (f.t - s - a) / r;
+      m.pose = p < .45 ? ATTACK_POSE[f.atk] ?? POSE.punch : f.atk === 'cp' || f.atk === 'c' ? POSE.crouch : grounded ? POSE.idle : POSE.crouch;
+      m.dx = 6 * (1 - p) * calm;
+      if (f.atk === 'cp' && p < .45) { m.sy *= .78; m.sx *= 1.06; }
+    }
+    return m;
+  }
+  if (!grounded) {                                                          // jump: stretch on take-off and landing, tuck at the apex
+    const apex = Math.abs(f.vy || 0) < 7;
+    m.pose = apex ? POSE.crouch : POSE.idle;
+    m.sy = apex ? 1 : 1 + .05 * calm; m.sx = apex ? 1 : 1 - .04 * calm;
+    m.rot = apex ? .18 * calm * Math.sign(f.vx * (f.face || 1) || 1) : 0;
+    return m;
+  }
+  if (f.block) {
+    Object.assign(m, { pose: f.crouch ? POSE.crouch : POSE.guard, dx: -2 * calm, rot: -.03 * calm });
+    return m;
+  }
+  if (f.crouch) { m.pose = POSE.crouch; m.sy = 1 + Math.sin(frame * .08) * .01 * calm; return m; }
+  if (Math.abs(f.vx || 0) > .1) {                                           // walk cycle: alternate stance and stride
+    const forward = Math.sign(f.vx) === (f.face || 1), step = Math.floor((f.walk || 0) * 1.6) % 2;
+    m.pose = step ? POSE.step : POSE.idle;
+    m.dy = -Math.abs(Math.sin((f.walk || 0) * 1.6 * Math.PI)) * 4 * calm;
+    m.rot = (forward ? .045 : -.04) * calm;
+    return m;
+  }
+  const breath = Math.sin(frame * .07) * calm;                              // idle: breathe and bounce on the balls of the feet
+  m.sy = 1 + breath * .014; m.sx = 1 - breath * .008; m.dy = -Math.max(0, breath) * 1.2;
+  return m;
+}
+function showcaseMotion(f, frame, reducedMotion) {
+  const m = { pose: POSE.idle, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, trail: 0 };
+  if (reducedMotion) return m;
+  const breath = Math.sin(frame * .07);
+  m.sy = 1 + breath * .014; m.sx = 1 - breath * .008; m.dy = -Math.max(0, breath) * 1.2;
+  if (!f.showcase) return m;
+  const t = (frame + (f.showcaseOffset || 0)) % 300;                        // select-screen demo: punch, kick, special
+  const beat = (start, len, pose, dx) => { if (t >= start && t < start + len) { m.pose = pose; m.dx = dx; m.sx = 1.03; m.sy = .99; } };
+  beat(120, 22, POSE.punch, 6); beat(160, 26, POSE.kick, 6); beat(220, 12, POSE.guard, -3); beat(232, 34, POSE.special, 8);
+  if (t >= 232 && t < 266) m.trail = 1;
+  return m;
+}
+function drawSheetFighter(g, f, sheet, scale = 1, withShadow = false, reducedMotion = false, frame = 0) {
+  const floor = f.groundY ?? GY, grounded = f.y >= floor - 2, face = f.face || 1;
+  const cellW = sheet.naturalWidth / 4, cellH = sheet.naturalHeight / 2, k = STAND_H / (cellH * SHEET_STAND);
+  const dw = cellW * k, dh = cellH * k;
+  const m = f.mv ? sheetMotion(f, frame, reducedMotion, grounded) : showcaseMotion(f, frame, reducedMotion);
+  if (withShadow) {
+    const lift = Math.min(1, Math.max(0, (floor - f.y) / 160));
+    g.fillStyle = `rgba(0,0,0,${.3 - lift * .14})`; g.beginPath();
+    g.ellipse(f.x, floor + 4, 46 * scale * (1 - lift * .35), 8 * scale, 0, 0, Math.PI * 2); g.fill();
+  }
+  const sx = (m.pose % 4) * cellW, sy = Math.floor(m.pose / 4) * cellH;
+  const blit = () => g.drawImage(sheet, sx, sy, cellW, cellH, -dw / 2, -dh * SHEET_FLOOR, dw, dh);
+  g.save();
+  g.translate(f.x + face * m.dx * scale, f.y + m.dy * scale);
+  g.scale(face * scale * m.sx, scale * m.sy);
+  g.rotate(m.rot);
+  if (m.trail) {                                                            // after-image streak on specials and supers
+    g.save(); g.globalAlpha = .22; g.translate(-14, 0); blit(); g.globalAlpha = .12; g.translate(-14, 0); blit(); g.restore();
+  }
+  g.filter = [f.alt ? 'hue-rotate(150deg) saturate(1.2)' : '', f.flash > 0 && !reducedMotion ? 'brightness(1.8)' : ''].join(' ').trim() || 'none';
+  blit();
+  g.filter = 'none';
+  if (f.sup && f.atk && !reducedMotion) {
+    g.globalAlpha = .65; g.strokeStyle = '#ffd23f'; g.lineWidth = 3; g.beginPath(); g.ellipse(0, -STAND_H * .5, 62, STAND_H * .58, 0, -.7, 2.7); g.stroke();
+  }
   g.restore();
 }
 function drawAnimatedFighterPortrait(g, f, image, scale, withShadow, reducedMotion, frame) {
   const floor = f.groundY ?? GY, height = 154, width = height * image.naturalWidth / image.naturalHeight;
-  const sheet = fighterActionArt(f.name);
-  if (sheet?.complete && sheet.naturalWidth && sheet.naturalHeight) {
-    const grounded = f.y >= floor - 2, movingBack = grounded && !f.atk && !f.block && !f.crouch && Math.abs(f.vx || 0) > .1 && Math.sign(f.vx) !== (f.face || 1);
-    const pose = f.hp <= 0 || f.kd > 0 ? 4
-      : f.atk === 's' ? 7
-        : ['j', 'jp'].includes(f.atk) ? 6
-          : ['k', 'c'].includes(f.atk) ? 2
-            : f.atk ? 1
-              : f.block ? 3
-                : f.crouch ? 4
-                  : !grounded ? 6
-                    : movingBack ? 5 : 0;
-    const bob = reducedMotion || !grounded ? 0 : Math.sin(frame * (movingBack ? .42 : .085)) * (movingBack ? 1.5 : 1);
-    if (withShadow) {
-      g.fillStyle = `rgba(0,0,0,${grounded ? .28 : .18})`; g.beginPath();
-      g.ellipse(f.x, floor + 4, width * scale * .34, 7 * scale, 0, 0, Math.PI * 2); g.fill();
-    }
-    g.save();
-    g.translate(f.x + (f.face || 1) * (f.atk ? 4 : 0), f.y + bob);
-    g.scale((f.face || 1) * scale, scale);
-    if (f.hp <= 0 || f.kd > 0) g.rotate(-.8);
-    else if (f.stun > 0) g.rotate(-.08);
-    g.filter = f.flash > 0 && !reducedMotion ? 'brightness(1.7)' : 'none';
-    const cols = 4, cellW = sheet.naturalWidth / cols, cellH = sheet.naturalHeight / 2;
-    g.drawImage(sheet, (pose % cols) * cellW, Math.floor(pose / cols) * cellH, cellW, cellH, -width / 2, -height, width, height);
-    g.filter = 'none';
-    g.restore();
-    return;
-  }
   const move = f.atk && f.mv ? f.mv[f.atk] : null;
   const grounded = f.y >= floor - 2;
   const down = f.hp <= 0 || f.kd > 0;
@@ -180,8 +395,7 @@ function drawFighter(g, f, scale = 1, withShadow = true, reducedMotion = false, 
   const portrait = useGeneratedArt ? fighterArt(f.name) : null;
   const actionSheet = useGeneratedArt ? fighterActionArt(f.name) : null;
   if (actionSheet?.complete && actionSheet.naturalWidth && actionSheet.naturalHeight) {
-    if (f.mv) drawAnimatedFighterPortrait(g, f, portrait, scale, withShadow, reducedMotion, frame);
-    else drawFighterActionFrame(g, f, actionSheet, 0, scale, withShadow, frame, reducedMotion);
+    drawSheetFighter(g, f, actionSheet, scale, withShadow, reducedMotion, frame);
     return;
   }
   if (portrait?.complete && portrait.naturalWidth) {
@@ -416,16 +630,15 @@ function drawMenu(g, w) {
   text(g, 'PIXEL BRAWL', W / 2, 78, 34, '#ffd23f');
   text(g, 'ARCADE FIGHTS · TRAINING · LOCAL PLAY', W / 2, 102, 7, '#c9b8e0');
   button(g, MENU_BUTTONS.one, '1 PLAYER VS CPU  ·  1', '#ff5a3c', w.menuIndex === 0, false);
-  text(g, 'LEVEL: ' + DIFFICULTIES[w.difficulty], MENU_BUTTONS.one.x + MENU_BUTTONS.one.w - 14, MENU_BUTTONS.one.y + 28, 6, DIFFICULTY_INFO[w.difficulty].col, 'right');
   button(g, MENU_BUTTONS.two, '2 PLAYERS  ·  2', '#4dabf7', w.menuIndex === 1, false);
   button(g, MENU_BUTTONS.dojo, 'COMBO DOJO', '#4dd0e1', w.menuIndex === 2, false);
   button(g, MENU_BUTTONS.tutorial, 'TUTORIAL', '#4dd0e1', w.menuIndex === 3, false); button(g, MENU_BUTTONS.settings, 'SETTINGS', '#b89aff', w.menuIndex === 4, false);
   g.fillStyle = 'rgba(10,4,20,.82)'; g.beginPath(); g.roundRect(58, 382, 844, 138, 12); g.fill();
   g.strokeStyle = 'rgba(110,78,136,.75)'; g.lineWidth = 1; g.stroke();
   text(g, 'CONTROLS', 80, 403, 7, '#ffd58a', 'left');
-  text(g, 'P1  WASD MOVE  ·  F PUNCH  ·  G KICK  ·  H SPECIAL  ·  J SUPER', 80, 424, 6, '#fff', 'left');
-  text(g, "P2  ARROWS MOVE  ·  K PUNCH  ·  L KICK  ·  ; SPECIAL  ·  ' SUPER", 80, 442, 6, '#fff', 'left');
-  text(g, 'CONTROLLER: D-PAD / STICK TO MOVE  ·  A CONFIRMS  ·  FACE BUTTONS ATTACK', 80, 460, 6, '#c9b8e0', 'left');
+  text(g, 'P1  WASD MOVE  ·  F PUNCH  ·  G KICK  ·  H SPECIAL  ·  J SUPER  ·  V BLOCK', 80, 424, 6, '#fff', 'left');
+  text(g, "P2  ARROWS MOVE  ·  K PUNCH  ·  L KICK  ·  ; SPECIAL  ·  ' SUPER  ·  / BLOCK", 80, 442, 6, '#fff', 'left');
+  text(g, 'CONTROLLER: D-PAD / STICK TO MOVE  ·  A CONFIRMS  ·  FACE BUTTONS ATTACK  ·  LT / RT BLOCK', 80, 460, 6, '#c9b8e0', 'left');
   text(g, 'CPU LEVEL IS CHOSEN WHEN YOU START 1P  ·  O: COMBO DOJO  ·  T: TUTORIAL  ·  DOWN + KICK SWEEP', 80, 480, 6, '#c9b8e0', 'left');
 }
 const MOVE_SHORT = { p: 'PUNCH', k: 'KICK', cp: 'DOWN PUNCH', c: 'DOWN KICK', jp: 'AIR PUNCH', j: 'FLY KICK', s: 'SPECIAL' };
@@ -436,7 +649,7 @@ function drawDojoSelect(g, w) {
   const panel = { x: 42, y: 112, w: 300, h: 294 }, ch = CHARS[w.dojo.fighter];
   g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(panel.x, panel.y, panel.w, panel.h); g.strokeStyle = '#4dd0e1'; g.lineWidth = 2; g.strokeRect(panel.x, panel.y, panel.w, panel.h);
   text(g, 'FIGHTER', 192, 139, 8, '#4dd0e1');
-  drawFighter(g, { ...ch, x: 192, y: 350, groundY: 350, face: 1, walk: 0, hp: ch.hp, maxHp: ch.hp }, 1.3, false, false, true);
+  drawFighter(g, { ...ch, showcase: true, x: 192, y: 350, groundY: 350, face: 1, walk: 0, hp: ch.hp, maxHp: ch.hp }, 1.3, true, w.reducedMotion, true, renderFrame);
   text(g, ch.name, 192, 376, 14, '#ffd23f'); text(g, ch.title, 192, 393, 6, '#ff9a4d');
   [DOJO_FIGHTER_PREV, DOJO_FIGHTER_NEXT].forEach((b, i) => { g.fillStyle = 'rgba(255,255,255,.11)'; g.fillRect(b.x, b.y, b.w, b.h); g.strokeStyle = '#4dd0e1'; g.lineWidth = 2; g.strokeRect(b.x, b.y, b.w, b.h); text(g, i ? '›' : '‹', b.x + b.w/2, b.y + 37, 24, '#fff'); });
   text(g, 'A / D OR LEFT / RIGHT', 192, 425, 6, '#c9b8e0');
@@ -462,13 +675,21 @@ function drawDojoOverlay(g, w) {
     g.strokeStyle = hit ? '#3ddc84' : 'rgba(255,255,255,.25)'; g.strokeRect(x, y, 88, 26);
     text(g, MOVE_SHORT[key], x + 44, y + 17, 5.5, hit ? '#fff' : '#c9b8e0');
   });
-  if (w.dojo.completed) text(g, 'COMBO CLEARED!', W / 2, 195, 10, '#3ddc84');
+  const cleared = (w.dojo.cleared || []).filter(Boolean).length;
+  text(g, `CLEARED ${cleared}/${COMBOS.length}`, panel.x + panel.w - 8, panel.y + panel.h + 16, 6, cleared === COMBOS.length ? '#3ddc84' : '#c9b8e0', 'right');
+  if (w.dojo.completed) {
+    const next = COMBOS[(w.dojo.combo + 1) % COMBOS.length];
+    text(g, cleared === COMBOS.length ? 'ALL CHALLENGES CLEARED!' : 'COMBO CLEARED!', W / 2, 190, 9, '#3ddc84');
+    text(g, 'NEXT: ' + next.name, W / 2, 228, 8, '#ffd23f');
+    const left = Math.max(0, w.dojo.successT) / DOJO_NEXT_DELAY;
+    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(W / 2 - 80, 236, 160, 6); g.fillStyle = '#ffd23f'; g.fillRect(W / 2 - 80, 236, 160 * (1 - left), 6);
+  }
   else text(g, `${w.dojo.progress} / ${combo.seq.length} HITS  ·  APPROACH THE DUMMY AND LINK THE MOVES`, W / 2, 194, 5.5, '#ddd');
   text(g, 'LB / RB OR Q / E: CHANGE CHALLENGE   ·   R: RESET   ·   ESC: PAUSE', W / 2, 518, 6, '#ffd58a');
 }
 const SLOT_COL = ['#e63946', '#4dabf7'];
-function drawIcon(g, ch, x, y) {
-  drawFighter(g, { ...ch, x: x + PORT.w / 2, y: y + PORT.h - 2, groundY: y + PORT.h - 2, face: 1, walk: 0, hp: 1 }, .54, false, false, true);
+function drawIcon(g, ch, x, y, reducedMotion) {
+  drawFighter(g, { ...ch, x: x + PORT.w / 2, y: y + PORT.h - 4, groundY: y + PORT.h - 4, face: 1, walk: 0, hp: 1 }, .52, false, reducedMotion, true, renderFrame + x);
 }
 function drawPanel(g, ch, x, y, active, col, label) {
   const pw = 450, ph = 176; g.fillStyle = 'rgba(10,4,20,.85)'; g.fillRect(x, y, pw, ph);
@@ -505,7 +726,7 @@ function drawSelect(g, w) {
   text(g, 'ESC / BACK', 74, 32, 7, '#c9b8e0');
   if (!w.twoP) text(g, 'CPU: ' + DIFFICULTIES[w.difficulty], W - 74, 32, 7, DIFFICULTY_INFO[w.difficulty].col, 'right');
   CHARS.forEach((ch, i) => {
-    const bx = PORT.x0 + i * (PORT.w + PORT.gap), by = PORT.y; g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(bx, by, PORT.w, PORT.h); drawIcon(g, ch, bx, by);
+    const bx = PORT.x0 + i * (PORT.w + PORT.gap), by = PORT.y; g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(bx, by, PORT.w, PORT.h); drawIcon(g, ch, bx, by, w.reducedMotion);
     [0, 1].forEach(n => { if (s.cur[n] === i) { g.strokeStyle = SLOT_COL[n]; g.lineWidth = s.roll[n] ? 6 : 4; g.strokeRect(bx + n * 5 + 2, by + n * 5 + 2, PORT.w - n * 10 - 4, PORT.h - n * 10 - 4); } });
     text(g, ch.name, bx + PORT.w / 2, by + PORT.h + 16, 8);
   });
@@ -524,7 +745,7 @@ function drawSelect(g, w) {
     const label = n === 0 ? 'P1' : w.twoP ? 'P2' : 'CPU', mirror = ch && n === 1 && s.cur[0] === s.cur[1], b = selButtons(n), ready = s.lock[n] && !s.roll[n];
     text(g, label, x, 140, 14, SLOT_COL[n]); if (ch) {
       const c = mirror ? { ...ch.c, gi: ch.c.band, band: ch.c.gi } : ch.c;
-    drawFighter(g, { ...ch, c, x, y: 306, groundY: 306, face: n ? -1 : 1, walk: 0, hp: 1, crouch: 0 }, .85, false, false, true);
+    drawFighter(g, { ...ch, c, alt: mirror, showcase: true, showcaseOffset: n * 150, x, y: 306, groundY: 306, face: n ? -1 : 1, walk: 0, hp: 1, crouch: 0 }, .85, true, w.reducedMotion, true, renderFrame);
     }
     button(g, b.lock, cpu ? (ready ? 'CPU READY' : 'CPU AUTO PICK') : s.roll[n] ? 'ROLLING...' : ready ? 'LOCKED - UNLOCK' : 'LOCK IN', SLOT_COL[n], ready && !cpu, cpu);
     const hint = cpu ? (ch ? 'AUTO PICK READY' : 'PICKS AFTER P1 LOCKS') : (n ? 'ARROWS MOVE · K LOCK' : 'A/D MOVE · F LOCK');
@@ -577,7 +798,7 @@ function drawTutorial(g,w) {
   g.fillStyle='rgba(10,4,20,.96)'; g.fillRect(0,0,W,H); text(g,w.tutorialPage?'COMBOS & CANCELS':'HOW TO PLAY',W/2,62,22,'#ffd23f'); text(g,w.tutorialPage?'PAGE 2 OF 2':'PAGE 1 OF 2',W/2,86,7,'#ffd58a');
   if (!w.tutorialPage) {
     text(g,'MOVE & DEFEND',92,142,10,'#4dd0e1','left');
-    ['Move: A/D or Left/Right','Jump: W or Up','Crouch: S or Down','Hold away from your rival to block','Stand block stops overhead attacks','Crouch block stops sweeps'].forEach((v,i)=>text(g,v,92,174+i*30,8,'#fff','left'));
+    ['Move: A/D or Left/Right','Jump: W or Up','Crouch: S or Down','Block: hold V (P1) or / (P2), or hold away','Stand block stops overhead attacks','Crouch block stops sweeps'].forEach((v,i)=>text(g,v,92,174+i*30,8,'#fff','left'));
     text(g,'ATTACK',530,142,10,'#ff9a4d','left');
     ['P1: F punch · G kick · H special · J super','P2: K punch · L kick · ; special · ‘ super','Down + Punch = quick crouching jab','Down + Kick = sweep (low attack)','Jump + Kick = fly kick (overhead)','Super needs a full meter'].forEach((v,i)=>text(g,v,530,174+i*30,7,'#fff','left'));
     text(g,'Win two rounds. Controller: D-pad / stick to move, face buttons to attack.',W/2,390,6.5,'#c9b8e0');
@@ -588,11 +809,14 @@ function drawTutorial(g,w) {
   button(g,{x:290,y:446,w:164,h:38},w.tutorialPage?'BACK: BASICS':'NEXT: COMBOS','#4dd0e1',false,false); button(g,{x:506,y:446,w:164,h:38},'MAIN MENU','#ff9a4d',false,false); text(g,'LEFT / RIGHT OR ENTER TO CHANGE PAGE',W/2,512,6,'#c9b8e0');
 }
 export function render(g,w) {
-  bg ||= makeBackground(); const base=w.mode==='settings'?w.settingsBack:w.mode, paused=base==='pause'||w.mode==='pause', m=paused?w.back:base;
-  g.save(); if(!w.reducedMotion&&w.shake>.5)g.translate((Math.random()-.5)*w.shake,(Math.random()-.5)*w.shake); g.drawImage(bg,0,0);
-  if(m==='menu')drawMenu(g,w); else if(m==='select')drawSelect(g,w); else if(m==='difficulty')drawDifficulty(g,w); else if(m==='tutorial')drawTutorial(g,w); else if(m==='dojoSelect')drawDojoSelect(g,w);
+  const base=w.mode==='settings'?w.settingsBack:w.mode, paused=base==='pause'||w.mode==='pause', m=paused?w.back:base;
+  const menuScreen=['menu','select','difficulty','tutorial','dojoSelect'].includes(m);
+  if(!paused)renderFrame++;                                                   // pausing freezes every animation, not just the simulation
+  g.save(); if(!paused&&!w.reducedMotion&&w.shake>.5)g.translate((Math.random()-.5)*w.shake,(Math.random()-.5)*w.shake);
+  g.drawImage(stageBackground(menuScreen?0:w.theme),0,0); if(!menuScreen)drawAmbient(g,w.theme,renderFrame,w.reducedMotion);
+  if(m==='menu')drawMenu(g,w); else if(m==='select')drawSelect(g,w); else if(m==='difficulty')drawDifficulty(g,w); else if(m==='tutorial')drawTutorial(g,w); else if(m==='dojoSelect')drawDojoSelect(g,w); else if(m==='theme')drawThemeSelect(g,w);
   else {
-    w.fighters.forEach(f=>drawFighter(g,f,1,true,w.reducedMotion,true,w.tick)); w.fireballs.forEach(b=>drawFireball(g,b,w.reducedMotion)); if(!w.reducedMotion)drawFx(g,w); drawHud(g,w); drawCombo(g,w);
+    w.fighters.forEach(f=>drawFighter(g,f,1,true,w.reducedMotion,true,renderFrame)); w.fireballs.forEach(b=>drawFireball(g,b,w.reducedMotion)); if(!w.reducedMotion)drawFx(g,w); drawHud(g,w); drawCombo(g,w);
     if(m==='dojo')drawDojoOverlay(g,w);
     if(m==='intro') {
       const label = w.t < INTRO_READY_AT ? 'ROUND ' + w.round : w.t < INTRO_FIGHT_AT ? 'READY!' : 'FIGHT!';

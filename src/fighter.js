@@ -4,7 +4,7 @@ import { strike } from './combat.js';
 export function createFighter(ch, isCpu, mirror) {
   const c = mirror ? { ...ch.c, gi: ch.c.band, band: ch.c.gi } : ch.c;   // alt colours if both pick the same fighter
   return { name: ch.name, c, mv: movesOf(ch), spd: ch.spd, jump: ch.jump, maxHp: ch.hp,
-           ai: isCpu ? { t: 0, m: 'wait' } : null, wins: 0, ...blank(0, 1, ch.hp) };
+           ai: isCpu ? { t: 0, m: 'wait' } : null, wins: 0, alt: !!mirror, ...blank(0, 1, ch.hp) };
 }
 function blank(x, face, hp) {
   return { x, y: GY, vx: 0, vy: 0, face, hp, show: hp, atk: null, t: 0, hit: 0, stun: 0, cd: 0,
@@ -67,11 +67,11 @@ export function updateFighter(w, f, o, i) {
     if (gr && !dashing) f.vx = 0;
   } else {
     f.crouch = gr && i.d ? 1 : 0;
-    const dir = (i.r ? 1 : 0) - (i.l ? 1 : 0), back = dir !== 0 && dir === -f.face;
-    f.block = gr && back ? 1 : 0;
+    const dir = (i.r ? 1 : 0) - (i.l ? 1 : 0), back = dir !== 0 && dir === -f.face, guard = !!i.b;
+    f.block = gr && (back || guard) ? 1 : 0;
     if (gr) {
-      f.vx = f.crouch ? 0 : dir * (back ? 3 : 4.5) * f.spd;
-      if ((i.u || f.buf.u) && !f.crouch) { f.vy = -f.jump; f.vx = dir * 4.5 * f.spd; delete f.buf.u; }
+      f.vx = f.crouch || guard ? 0 : dir * (back ? 3 : 4.5) * f.spd;
+      if ((i.u || f.buf.u) && !f.crouch && !guard) { f.vy = -f.jump; f.vx = dir * 4.5 * f.spd; delete f.buf.u; }
     }
     tryAttack(w, f, gr, false);
   }
