@@ -18,7 +18,7 @@ export function applyHit(w, from, to, h) {
   if (blocked) {
     to.hp = Math.max(1, to.hp - Math.max(1, Math.ceil(h.dmg * (h.chip || .12))));
     to.stun = 10; to.vx = from.face * h.kb * .8; to.flash = 0; fx.k = 'block';
-    gain(at, 4); w.sfx(140, .08, 'triangle', .08);
+    gain(at, 4); w.sfx('block');
   } else {
     const cont = to.stun > 0 && to.cmb > 0, n = cont ? to.cmb : 0, counter = !!to.atk;
     const seq = (cont ? [...(to.seq || []), h.key] : [h.key]).slice(-6);          // moves that hit during this combo
@@ -27,16 +27,17 @@ export function applyHit(w, from, to, h) {
     const combo = found && found.seq.length > (cont ? to.cbLen || 0 : 0) ? found : null;   // each skill pays once per combo
     to.cbLen = combo ? combo.seq.length : (cont ? to.cbLen || 0 : 0); to.seq = seq;
     const dmg = Math.max(1, Math.round(h.dmg * Math.max(.5, 1 - .08 * n) * (counter ? 1.25 : 1) + (combo ? combo.bonus : 0)));
-    to.hp = Math.max(0, to.hp - dmg);
+    const trainingDummy = w.mode === 'dojo' && w.fighters?.[1] === to;
+    to.hp = trainingDummy ? Math.max(1, to.hp - dmg) : Math.max(0, to.hp - dmg);
     to.cmb = n + 1; to.cmbDmg = (cont ? to.cmbDmg : 0) + dmg; to.cmbT = 70;
     to.stun = h.st + (counter ? 4 : 0); to.vx = from.face * h.kb; to.atk = null; to.hit = 0; to.flash = 6;
     gain(at, dmg * 1.5 + (combo ? 10 : 0)); gain(to, dmg * .8);
-    w.hitstop = counter ? 8 : 5; w.shake = 7; fx.k = counter ? 'counter' : 'hit';
+    w.hitstop = counter ? 8 : 5; if (!w.reducedMotion) w.shake = 7; fx.k = counter ? 'counter' : 'hit';
     if (counter) w.banner = { text: 'COUNTER!', t: 45 };
     if (h.kd || (combo && combo.kd)) { to.kd = to.stun = 44; to.vy = -9; to.vx = from.face * (h.kb + 2); w.hitstop = 8; w.banner = { text: 'KNOCKDOWN!', t: 45 }; }
-    if (combo) { w.banner = { text: combo.name + '  +' + combo.bonus, t: 70 }; w.sfx(520, .25, 'square', .08); }
-    w.sfx(200, .15, 'sawtooth', .09);
-    if (to.hp <= 0) { to.stun = 999; to.kd = 0; to.vx = from.face * 6; to.vy = -10; w.hitstop = 12; w.shake = 14; w.sfx(90, .5, 'sawtooth', .12); }
+    if (combo) { w.banner = { text: combo.name + '  +' + combo.bonus, t: 70 }; w.sfx('combo'); }
+    w.sfx('hit');
+    if (to.hp <= 0) { to.stun = 999; to.kd = 0; to.vx = from.face * 6; to.vy = -10; w.hitstop = 12; if (!w.reducedMotion) w.shake = 14; w.sfx('ko'); }
   }
   w.fx.push(fx);
 }

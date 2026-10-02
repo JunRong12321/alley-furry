@@ -20,23 +20,24 @@ function special(w, f, o, A) {
     if (f.t === A.s) {
       w.fireballs.push({ x: f.x + f.face * 55, y: GY - 85, v: f.face * A.speed, dmg: S.dmg, size: (A.size || 1) * (f.sup ? 1.5 : 1),
         st: A.st || 22, kb: A.kb || 8, kd: S.kd, chip: S.chip, owner: f, face: f.face });
-      w.sfx(300, 0.3, 'sawtooth');
+      w.sfx('special');
     }
     return;
   }
-  if (f.t === A.s) { if (A.type === 'rise') f.vy = A.vy; w.sfx(260, 0.25, 'sawtooth'); }
+  if (f.t === A.s) { if (A.type === 'rise') f.vy = A.vy; w.sfx('special'); }
   if (f.t >= A.s && f.t < A.s + A.a) { if (A.type === 'dash') f.vx = f.face * A.speed; if (!f.hit) strike(w, f, o, S); }
 }
 
 function startMove(w, f, key, sup) {
   Object.assign(f, { atk: key, t: 0, hit: 0, sup: sup ? 1 : 0, buf: {} });
   if (key === 's') f.vx = 0;
-  w.sfx(key === 's' ? 220 : /p/.test(key) ? 420 : 320, 0.07);
+  const sound = key === 's' ? 'special' : ['k', 'j', 'c'].includes(key) ? 'kick' : 'attack';
+  w.sfx(sound);
 }
 // Starts a move from the (buffered) button presses. cancel=true: only specials allowed (special-cancel after a normal connects).
 function tryAttack(w, f, gr, cancel) {
   const b = f.buf;
-  if (gr && b.x && f.meter >= METER_MAX) { f.meter = 0; f.cd = 0; w.banner = { text: 'SUPER ART!', t: 60 }; w.shake = 6; startMove(w, f, 's', 1); return true; }
+  if (gr && b.x && f.meter >= METER_MAX) { f.meter = 0; f.cd = 0; w.banner = { text: 'SUPER ART!', t: 60 }; if (!w.reducedMotion) w.shake = 6; startMove(w, f, 's', 1); return true; }
   if (gr && b.s && !f.cd) { f.cd = f.mv.s.cd || 70; startMove(w, f, 's', 0); return true; }
   if (cancel || !(b.k || b.p)) return false;
   const btn = (b.k || 0) >= (b.p || 0) ? 'k' : 'p';                       // most recent press wins

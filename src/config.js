@@ -2,6 +2,9 @@
 export const W = 960, H = 540, GY = 470;      // canvas size, ground line
 export const STEP = 1000 / 60;                // fixed timestep (ms)
 export const ROUND_TIME = 60, ROUNDS_TO_WIN = 2;
+export const SELECT_FRAMES = 30 * 60;
+// Let each arcade call finish clearly before the next one begins.
+export const INTRO_ROUND_AT = 1, INTRO_READY_AT = 78, INTRO_FIGHT_AT = 150, INTRO_END_AT = 201;
 
 // s = startup, a = active, r = recovery (frames)
 export const BUFFER = 8, METER_MAX = 100;      // input buffer (frames), super meter size
@@ -69,13 +72,36 @@ export const COMBOS = [
 ];
 export const MOVE_NAMES = { p: 'Punch', k: 'Kick', cp: 'Down+Punch', c: 'Down+Kick', jp: 'Jump Punch', j: 'Fly Kick', s: 'Special' };
 
-// Character select: per-player LOCK IN / RANDOM buttons (P1 left of centre, P2 right of centre)
-export const selButtons = n => { const x = n ? W / 2 + 14 : W / 2 - 14 - 268; return { lock: { x, y: 188, w: 130, h: 34 }, rand: { x: x + 138, y: 188, w: 130, h: 34 } }; };
+// Character select: lock-in buttons and a separate random tile in the roster.
+export const selButtons = n => ({ lock: { x: n ? 620 : 140, y: 310, w: 200, h: 38 } });
 export const ROLL_FRAMES = 180;                                   // random roll lasts 3 seconds
+export const MENU_BUTTONS = {
+  one: { x: 250, y: 120, w: 460, h: 46 }, two: { x: 250, y: 174, w: 460, h: 46 },
+  dojo: { x: 250, y: 228, w: 460, h: 42 },
+  tutorial: { x: 252, y: 282, w: 218, h: 40 }, settings: { x: 490, y: 282, w: 218, h: 40 },
+};
+export const DOJO_START = { x: 345, y: 440, w: 270, h: 40 };
+export const DOJO_FIGHTER_PREV = { x: 76, y: 254, w: 44, h: 54 };
+export const DOJO_FIGHTER_NEXT = { x: 258, y: 254, w: 44, h: 54 };
+export const dojoComboRect = i => ({ x: 382 + (i % 2) * 270, y: 126 + Math.floor(i / 2) * 67, w: 250, h: 58 });
+export const DIFFICULTIES = ['EASY', 'NORMAL', 'HARD'];
+// "Choose your challenge" screen. The text matches what src/ai.js really does at each level.
+export const DIFFICULTY_INFO = [
+  { name: 'EASY',   col: '#3ddc84', tag: 'LEARN THE MOVES',  lines: ['SLOW, HESITANT CPU', 'RARELY BLOCKS OR COMBOS', 'BEST FOR PRACTISING'] },
+  { name: 'NORMAL', col: '#ffd23f', tag: 'A FAIR FIGHT',     lines: ['BALANCED REACTIONS', 'MIXES IN COMBOS', 'THE RECOMMENDED LEVEL'] },
+  { name: 'HARD',   col: '#ff5a3c', tag: 'FOR A REAL TEST',  lines: ['FAST REACTIONS AND BLOCKS', 'CHAINS COMBOS, USES SUPERS', 'EXPECT NO MERCY'] },
+];
+export const diffCardRect = i => ({ x: 96 + i * 270, y: 140, w: 250, h: 200 });
+export const MATCH_DIFF = { x: 300, y: 340, w: 360, h: 30 };      // tap target on the match-over screen (1 player only)
+export const SETTINGS_ITEMS = ['MUSIC VOLUME', 'UI SOUND VOLUME', 'FIGHT SFX VOLUME', 'ANNOUNCER VOICE', 'CPU DIFFICULTY', 'MASTER MUTE', 'REDUCED MOTION', 'BACK'];
+export const settingsRect = i => ({ x: 236, y: 94 + i * 48, w: 488, h: 40 });
+export const settingSliderRect = i => ({ x: 458, y: settingsRect(i).y + 14, w: 170, h: 12 });
+export const exitChoiceRect = i => ({ x: 352 + i * 142, y: 286, w: 112, h: 42 });
 // Pause menu
-export const PAUSE_ITEMS = ['RESUME', 'REMATCH', 'EXIT MATCH'];
-export const pauseRect = i => ({ x: 330, y: 190 + i * 62, w: 300, h: 48 });
-export const PORT = { x0: 203, y: 66, w: 84, h: 84, gap: 10 };
+export const PAUSE_ITEMS = ['RESUME', 'REMATCH', 'EXIT MATCH', 'SETTINGS'];
+export const pauseRect = i => ({ x: 330, y: 150 + i * 48, w: 300, h: 40 });   // index 4 (DIFFICULTY) only exists in 1-player matches
+export const PORT = { x0: 156, y: 66, w: 84, h: 84, gap: 10 };
+export const randomBoxRect = { x: PORT.x0 + CHARS.length * (PORT.w + PORT.gap), y: PORT.y, w: PORT.w, h: PORT.h };
 export const KEYMAP = [
   { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyJ' },
   { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon', x: 'Quote' },
