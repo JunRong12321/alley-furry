@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld, startMatch, step, openSelect, selMove, selLock, selRandom, selectClick, pause, resume, pauseChoose } from '../src/game.js';
 import { applyHit } from '../src/combat.js';
-import { W, GY, CHARS, PORT, selButtons } from '../src/config.js';
+import { W, GY, CHARS, PORT, randomBoxRect, SELECT_FRAMES, ROLL_FRAMES } from '../src/config.js';
 
 const idle = () => ({});
 const mash = () => { const r = () => Math.random() < 0.3; return { l: r(), r: r(), u: r(), d: r(), p: r(), k: r(), s: r(), x: r() }; };
@@ -15,9 +15,11 @@ function checkInvariants(w) {
   }
 }
 
-test('intro switches to fight after two seconds', () => {
+test('intro holds the Round / Ready / Fight sequence before combat', () => {
   const w = createWorld(); startMatch(w, false);
-  for (let i = 0; i < 125; i++) step(w, idle);
+  for (let i = 0; i < 200; i++) step(w, idle);
+  assert.equal(w.mode, 'intro');
+  step(w, idle);
   assert.equal(w.mode, 'fight');
 });
 
@@ -49,24 +51,36 @@ test('select: locked players can not move, and unlocking works', () => {
   selLock(w, 0); selMove(w, 0, 1); assert.equal(w.sel.cur[0], 1);
 });
 
-test('random button: rolls for 3 seconds, slows down, lands on a fighter and locks in', () => {
+test('separate random roster tile rolls without locking the player in', () => {
   const w = createWorld(); openSelect(w, true);
-  selectClick(w, selButtons(0).rand.x + 5, selButtons(0).rand.y + 5);       // click the RANDOM button
+  selectClick(w, randomBoxRect.x + randomBoxRect.w / 2, randomBoxRect.y + randomBoxRect.h / 2);
   assert.ok(w.sel.roll[0]);
-  const seen = new Set(); selMove(w, 0, 1);                                  // moving during a roll is ignored
-  for (let i = 0; i < 179; i++) { step(w, idle); seen.add(w.sel.cur[0]); }
-  assert.ok(w.sel.roll[0] && !w.sel.lock[0], 'still rolling just before 3 seconds');
-  assert.ok(seen.size >= 5, 'cycled through the roster');
-  step(w, idle);
-  assert.ok(!w.sel.roll[0] && w.sel.lock[0], 'locked in after 3 seconds');
+  const seen = new Set(); selMove(w, 0, 1);
+  for (let i = 0; i < 140; i++) { step(w, idle); seen.add(w.sel.cur[0]); }
+  assert.ok(w.sel.roll[0], 'the random roll is still animating');
+  assert.ok(seen.size >= 5, 'the highlight cycled through the roster');
+  for (let i = 0; i < 50; i++) step(w, idle);
+  assert.ok(!w.sel.roll[0] && !w.sel.lock[0], 'the roll ends without locking in');
   assert.ok(w.sel.cur[0] >= 0 && w.sel.cur[0] < CHARS.length);
 });
 
-test('1 player: CPU side is always ready and can be re-rolled', () => {
+test('1 player: CPU begins empty, then auto-picks after Player 1 locks', () => {
   const w = createWorld(); openSelect(w, false);
-  assert.ok(w.sel.lock[1]); selLock(w, 0);
-  for (let i = 0; i < 80; i++) step(w, idle);
-  assert.equal(w.mode, 'intro');
+  assert.equal(w.sel.cur[1], null); assert.equal(w.sel.lock[1], false);
+  selLock(w, 0); step(w, idle);
+  assert.ok(w.sel.roll[1], 'CPU begins a random roll after Player 1 locks');
+  for (let i = 0; i < ROLL_FRAMES; i++) step(w, idle);
+  assert.ok(Number.isInteger(w.sel.cur[1]) && w.sel.lock[1], 'CPU randomly selects and readies a fighter');
+  assert.ok(w.sel.lock[0]);
+});
+
+test('character select timer automatically rolls and locks unselected players', () => {
+  const w = createWorld(); openSelect(w, true);
+  for (let i = 0; i <= SELECT_FRAMES; i++) step(w, idle);
+  assert.ok(w.sel.roll[0] && w.sel.roll[0].autoLock);
+  assert.ok(w.sel.roll[1] && w.sel.roll[1].autoLock);
+  for (let i = 0; i < ROLL_FRAMES; i++) step(w, idle);
+  assert.ok(w.sel.lock[0] && w.sel.lock[1]);
 });
 
 test('pause menu: resume, rematch and exit match', () => {
@@ -79,7 +93,9 @@ test('pause menu: resume, rematch and exit match', () => {
   w.fighters[1].hp = 10; w.fighters[0].wins = 1; pause(w); pauseChoose(w, 1);
   assert.equal(w.mode, 'intro'); assert.equal(w.fighters[1].hp, w.fighters[1].maxHp); assert.equal(w.fighters[0].wins, 0);
   assert.deepEqual(w.picks, [0, 1]);
-  pause(w); resume(w); pause(w); pauseChoose(w, 2); assert.equal(w.mode, 'menu');
+  pause(w); resume(w); pause(w); pauseChoose(w, 2); assert.ok(w.exitConfirm && w.mode === 'pause');
+  pauseChoose(w, 1); assert.ok(!w.exitConfirm && w.mode === 'pause', 'No returns to the pause menu');
+  pauseChoose(w, 2); pauseChoose(w, 0); assert.equal(w.mode, 'menu', 'Yes exits to the main menu');
 });
 
 test('random button mashing never corrupts the game (all fighter pairs, CPU and 2P)', () => {
@@ -165,4 +181,45 @@ test('special-cancel combo: punch then special in one go hits twice', () => {
   const w = duel(); const t = w.fighters[1];
   run(w, 70, (n, f) => (n === 0 ? (f === 0 ? { p: true } : f === 3 ? { s: true } : {}) : {}));
   assert.ok(t.cmb >= 2 || t.cmbDmg > 0, 'combo registered'); assert.ok(t.maxHp - t.hp > 6);
+});
+
+// ---- difficulty flow ----
+import { openDifficulty, cycleDifficulty, difficultyConfirm, pauseItems } from '../src/game.js';
+
+test('difficulty: 1-player flow is menu -> difficulty -> fighter select, and the level is kept', () => {
+  const w = createWorld(); openDifficulty(w);
+  assert.equal(w.mode, 'difficulty');
+  cycleDifficulty(w, 1); assert.equal(w.difficulty, 2);                 // NORMAL -> HARD
+  cycleDifficulty(w, 1); assert.equal(w.difficulty, 0);                 // wraps to EASY
+  cycleDifficulty(w, -1); assert.equal(w.difficulty, 2);
+  difficultyConfirm(w);
+  assert.equal(w.mode, 'select'); assert.equal(w.twoP, false); assert.equal(w.difficulty, 2);
+});
+
+test('difficulty: pause menu shows a CPU level row only in 1-player matches and applies it at once', () => {
+  const w = createWorld(); startMatch(w, false, [0, 1]); w.mode = 'fight'; pause(w);
+  assert.equal(pauseItems(w).length, 5);
+  pauseChoose(w, 4, -1); assert.equal(w.difficulty, 0);                 // NORMAL -> EASY
+  pauseChoose(w, 4, 1); pauseChoose(w, 4, 1); assert.equal(w.difficulty, 2);
+  const w2 = createWorld(); startMatch(w2, true, [0, 1]); w2.mode = 'fight'; pause(w2);
+  assert.equal(pauseItems(w2).length, 4); pauseChoose(w2, 4, 1); assert.equal(w2.difficulty, 1, 'no CPU in 2-player');
+});
+
+test('difficulty: harder CPU levels really are more dangerous (seeded, averaged)', () => {
+  const realRandom = Math.random; let seed = 12345;
+  Math.random = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  try {
+    const damage = level => {
+      let total = 0;
+      for (let trial = 0; trial < 6; trial++) {
+        const w = createWorld(); w.difficulty = level; startMatch(w, false, [0, 1]); w.mode = 'fight';
+        const me = w.fighters[0]; me.hp = me.maxHp = me.show = 1e6;     // idle punching bag
+        for (let f = 0; f < 3600; f++) step(w, () => ({}));
+        total += 1e6 - me.hp;
+      }
+      return total / 6;
+    };
+    const [easy, normal, hard] = [damage(0), damage(1), damage(2)];
+    assert.ok(easy < normal && normal < hard, `damage easy ${easy} < normal ${normal} < hard ${hard}`);
+  } finally { Math.random = realRandom; }
 });
