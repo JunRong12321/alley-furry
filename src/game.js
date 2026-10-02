@@ -1,5 +1,5 @@
 // Pure game logic. No DOM, no canvas: it can run (and be tested) in Node.
-import { W, ROUND_TIME, ROUNDS_TO_WIN, CHARS, COMBOS, PORT, selButtons, randomBoxRect, ROLL_FRAMES, SELECT_FRAMES, PAUSE_ITEMS, pauseRect, exitChoiceRect, INTRO_END_AT, DIFFICULTIES } from './config.js';
+import { W, GY, ROUND_TIME, ROUNDS_TO_WIN, CHARS, COMBOS, THEMES, themeCardRect, PORT, selButtons, randomBoxRect, ROLL_FRAMES, SELECT_FRAMES, PAUSE_ITEMS, pauseRect, exitChoiceRect, INTRO_END_AT, DIFFICULTIES } from './config.js';
 import { createFighter, resetFighter, updateFighter } from './fighter.js';
 import { hurtbox, applyHit, canHit } from './combat.js';
 import { cpuInput } from './ai.js';
@@ -9,7 +9,7 @@ export function createWorld(sfx = () => {}) {
            winner: -1, shake: 0, hitstop: 0, fx: [], banner: null, twoP: false, picks: [0, 1], sel: null,
            back: 'fight', pm: 0, menuIndex: 0, difficulty: 1, tutorialPage: 0, settingsBack: 'menu', settingsIndex: 0,
            audio: { music: 100, ui: 100, effects: 100, voice: 100, muted: false }, reducedMotion: false,
-           dojo: null, exitConfirm: false, exitChoice: 0, sfx };
+           dojo: null, exitConfirm: false, exitChoice: 0, theme: 0, sfx };
 }
 // ----- character select: both players choose at the same time -----
 const rnd = n => Math.random() * n | 0;
@@ -70,7 +70,7 @@ function tickSelect(w) {
     if (s.cur[n] !== r.seq[k]) { s.cur[n] = r.seq[k]; w.sfx('roll'); }
     if (r.f >= ROLL_FRAMES) { s.roll[n] = null; s.lock[n] = !!r.autoLock; w.sfx('confirm'); }
   });
-  if (s.lock[0] && s.lock[1] && !s.roll[0] && !s.roll[1]) { if (++s.go >= 70) startMatch(w, w.twoP, [...s.cur]); }
+  if (s.lock[0] && s.lock[1] && !s.roll[0] && !s.roll[1]) { if (++s.go >= 70) openTheme(w, [...s.cur]); }
   else s.go = 0;
 }
 const inBox = (x, y, b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
@@ -84,9 +84,24 @@ export function selectClick(w, x, y) {
   }
   if (y >= 160) s.slot = x < W / 2 ? 0 : 1;
 }
+// ----- stage theme: picked after both fighters lock in -----
+export function openTheme(w, picks = w.picks) { w.picks = picks; w.mode = 'theme'; w.sfx('confirm'); }
+export function themeMove(w, d) {
+  if (w.mode !== 'theme') return;
+  w.theme = (w.theme + d + THEMES.length) % THEMES.length; w.sfx('select');
+}
+export function themePick(w, i) {
+  if (w.mode !== 'theme' || i < 0 || i >= THEMES.length) return;
+  if (w.theme !== i) { w.theme = i; w.sfx('select'); }
+}
+export function themeRandom(w) { if (w.mode === 'theme') themePick(w, rnd(THEMES.length)); }
+export function themeConfirm(w) { if (w.mode === 'theme') { w.sfx('confirm'); startMatch(w, w.twoP, w.picks); } }
+export function themeClick(w, x, y) {
+  for (let i = 0; i < THEMES.length; i++) if (inBox(x, y, themeCardRect(i))) return w.theme === i ? themeConfirm(w) : themePick(w, i);
+}
 // ----- pause, exit confirmation, settings and tutorial -----
 export function pause(w) {
-  if (['intro', 'fight', 'end', 'dojo'].includes(w.mode)) { w.back = w.mode; w.mode = 'pause'; w.pm = 0; w.exitConfirm = false; }
+  if (['intro', 'fight', 'end', 'dojo'].includes(w.mode)) { w.back = w.mode; w.mode = 'pause'; w.pm = 0; w.exitConfirm = false; w.shake = 0; }
 }
 export function resume(w) { if (w.mode === 'pause') w.mode = w.back; }
 export function openSettings(w) { w.settingsBack = w.mode; w.settingsIndex = 0; w.mode = 'settings'; }
@@ -128,7 +143,7 @@ export function startMatch(w, twoP, picks = w.picks) {
   w.round = 0; newRound(w);
 }
 export function openDojo(w) {
-  w.dojo = { fighter: 0, combo: 0, progress: 0, completed: false, successT: 0 };
+  w.dojo = { fighter: 0, combo: 0, progress: 0, completed: false, successT: 0, cleared: COMBOS.map(() => false) };
   w.mode = 'dojoSelect';
 }
 export function dojoChangeFighter(w, delta) {
@@ -189,18 +204,30 @@ function checkRoundEnd(w) {
   if (w.winner >= 0) w.fighters[w.winner].wins++;
   w.mode = 'end'; w.t = 0;
 }
+export const DOJO_NEXT_DELAY = 100;
 function advanceDojo(w, readInput) {
+  const [player, dummy] = w.fighters, anchor = dummy.x, goal = COMBOS[w.dojo.combo].seq;
   physics(w, readInput, true);
-  const dummy = w.fighters[1], goal = COMBOS[w.dojo.combo].seq;
+  if (dummy.kd <= 0 && dummy.y >= GY) {                            // the training dummy stands its ground so long chains stay in reach
+    dummy.x = anchor; dummy.vx = 0;
+    const gap = player.x - dummy.x;
+    if (Math.abs(gap) < 55) player.x = Math.max(40, Math.min(W - 40, dummy.x + (gap < 0 ? -55 : 55)));
+  }
   if (!w.dojo.completed) {
     let matched = 0;
     if (dummy.cmbT > 0) for (let n = Math.min(goal.length, dummy.seq.length); n > 0; n--) {
       if (dummy.seq.slice(-n).every((move, i) => move === goal[i])) { matched = n; break; }
     }
     w.dojo.progress = matched;
-    if (matched === goal.length) { w.dojo.completed = true; w.dojo.successT = 150; w.sfx('confirm'); }
+    if (matched === goal.length) {
+      w.dojo.completed = true; w.dojo.successT = DOJO_NEXT_DELAY; (w.dojo.cleared ||= COMBOS.map(() => false))[w.dojo.combo] = true; w.sfx('confirm');
+    }
   }
-  if (w.dojo.successT > 0) w.dojo.successT--;
+  if (w.dojo.successT > 0 && --w.dojo.successT === 0 && w.dojo.completed) {
+    w.dojo.combo = (w.dojo.combo + 1) % COMBOS.length;           // move straight on to the next challenge
+    resetDojo(w);
+    return;
+  }
   dummy.hp = dummy.maxHp; dummy.show = dummy.maxHp;
 }
 // Advance the game by exactly one frame. readInput(n) -> {l,r,u,d,p,k,s} for human player n.

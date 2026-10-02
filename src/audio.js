@@ -1,17 +1,22 @@
+import { THEMES } from './config.js';
+
 // Locally bundled CC0 music and effects keep the game audible without remote hosting.
 const audioAsset = file => new URL(`../assets/audio/${file}`, import.meta.url).href;
-const tracks = {
-  menu: document.getElementById('menu-bgm'),
-  fight: document.getElementById('fight-bgm'),
-};
-tracks.menu.volume = .18;
-tracks.menu.loop = true;
-tracks.fight.volume = .12;
-tracks.fight.addEventListener('ended', () => {
-  if (!unlocked || !prefs.music || prefs.muted || mode !== 'fight') return;
-  tracks.fight.currentTime = 7.5; // authored loop point in the battle theme
-  tracks.fight.play().catch(() => {});
+const menuTrack = document.getElementById('menu-bgm');
+menuTrack.volume = .18;
+menuTrack.loop = true;
+// One battle track per stage theme; only the chosen theme is streamed.
+const themeTracks = THEMES.map(theme => {
+  const track = new Audio(audioAsset(theme.music));
+  track.preload = 'none'; track.loop = !theme.loopAt;
+  if (theme.loopAt) track.addEventListener('ended', () => {
+    if (!unlocked || !prefs.music || prefs.muted || activeTrack() !== track) return;
+    track.currentTime = theme.loopAt; // authored loop point
+    track.play().catch(() => {});
+  });
+  return track;
 });
+const allTracks = [menuTrack, ...themeTracks];
 
 const clips = {
   select: ['select_001.ogg', .34],
@@ -49,7 +54,8 @@ const voicePlayers = Object.fromEntries(Object.entries(voices).map(([name, [file
 }));
 
 let unlocked = false;
-let mode = 'menu';
+let mode = 'menu', theme = 0;
+const activeTrack = () => (mode === 'menu' ? menuTrack : themeTracks[theme] || themeTracks[0]);
 const defaultPrefs = { music: 100, ui: 100, effects: 100, voice: 100, muted: false };
 const volumeKeys = ['music', 'ui', 'effects', 'voice'];
 function loadPreferences() {
@@ -62,9 +68,10 @@ let prefs = loadPreferences();
 const uiSounds = new Set(['select', 'confirm', 'tick', 'rollStart', 'roll', 'countdown', 'countdownFinal']);
 
 function syncMusic() {
-  Object.entries(tracks).forEach(([name, track]) => {
-    const shouldPlay = unlocked && prefs.music > 0 && !prefs.muted && name === mode;
-    track.volume = (name === 'menu' ? .18 : .10) * prefs.music / 100;
+  const active = activeTrack();
+  allTracks.forEach(track => {
+    const shouldPlay = unlocked && prefs.music > 0 && !prefs.muted && track === active;
+    track.volume = (track === menuTrack ? .18 : .10) * prefs.music / 100;
     if (shouldPlay) {
       if (track.paused) track.play().catch(() => {});
     } else if (!track.paused) track.pause();
@@ -88,10 +95,12 @@ export function setAudioPreferences(next) {
   syncMusic();
 }
 
-export function setAudioMode(next) {
+export function setAudioMode(next, nextTheme = theme) {
   if (next !== 'menu' && next !== 'fight') return;
-  if (mode === next) return;
-  mode = next;
+  if (mode === next && theme === nextTheme) return;
+  const previous = activeTrack();
+  mode = next; theme = nextTheme;
+  if (activeTrack() !== previous) activeTrack().currentTime = 0;
   syncMusic();
 }
 

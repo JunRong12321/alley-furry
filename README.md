@@ -17,6 +17,8 @@ src/audio.js        music, sound effects and mute settings
 src/render.js       all canvas drawing
 src/main.js         wires everything together, runs the game loop
 assets/audio/       local CC0 music and sound effects
+assets/fighters/    fighter portraits and animated action sheets
+tools/              asset scripts (clean_sprites.py rebuilds the action sheets)
 tests/              automated tests (Node)
 ```
 
@@ -56,7 +58,7 @@ npm test        # needs Node 18+
 | Move / jump / crouch | W A S D | Arrow keys |
 | Punch / Kick / Special | F / G / H | K / L / ; |
 | Super Art (full meter) | J | ' (quote) |
-| Block | Hold back (away from opponent) | same |
+| Block | V (or hold away from opponent) | / (or hold away) |
 
 Click or tap a menu option (or press 1 / 2). On phones, on-screen buttons control Player 1. `Esc` pauses a match; use it to return from character select or the tutorial.
 
@@ -72,7 +74,7 @@ Settings > Pages > Deploy from a branch > `main` / root. The game is served at `
 | Crouch jab (Down + Punch) | Very fast, good for starting combos. |
 | Sweep (Down + Kick) | Low attack: must be blocked crouching. Knocks the opponent down. |
 | Jump punch / Fly kick (Jump, then Punch / Kick) | Overhead: must be blocked standing. Lands into recovery. |
-| Block | Hold away from the opponent. Stand-block stops mid + overhead, crouch-block stops mid + low. Blocked hits do small chip damage (never a KO). |
+| Block | Hold the block button (`V` / `/`, controller LT or RT, touch BLOCK) or hold away from the opponent. Holding the block button plants your feet. Stand-block stops mid + overhead, crouch-block stops mid + low. Blocked hits do small chip damage (never a KO). |
 | Counter hit | Hitting someone who is mid-attack: +25% damage and longer hit-stun. |
 | Combo | Hits while the opponent is still in hit-stun. Each extra hit does 10% less damage (down to 40%). |
 | Knockdown | Opponent is launched, lies down and cannot be hit while getting up. |
@@ -87,9 +89,10 @@ All move numbers (startup, active, recovery, damage, hit-stun, guard height) are
 - In CPU mode, the CPU panel starts empty and the CPU randomly chooses after Player 1 locks in.
 - The seventh roster tile, marked `? RANDOM`, starts a 3-second random roll. The roll does not lock the fighter; select **LOCK IN** when ready. Press `R` to roll for the active player.
 - CPU difficulty is selectable on the home screen: Easy, Normal or Hard.
-- **Settings** on the home screen or pause menu gives separate 0–100 sliders for music, menu/select sounds, fight effects and announcer voice, plus master mute. Choices are saved on this device. Menu music switches to a quieter fight track when a match starts. Local announcer calls cover each round, Ready and Fight; the browser speaks the winning fighter's name. Selection countdown and random rolls have their own sound cues. Sources and licenses are listed in `assets/audio/ASSETS.md`.
-- **Combo Dojo** is a practice mode for all eight combo skills. Choose a fighter and combo, then chain the displayed attacks on a passive dummy. The dummy recovers and cannot be knocked out. Press `R` to reset, `Q/E` or `[/]` to switch challenges, and `Esc` to pause.
-- **Controller support** uses the browser Gamepad API. The first two connected controllers map to Players 1 and 2. The D-pad or left stick moves, the four face buttons attack, and Start pauses or confirms.
+- **Settings** on the home screen or pause menu gives separate 0–100 sliders for music, menu/select sounds, fight effects and announcer voice, plus master mute. Choices are saved on this device. Menu music switches to the chosen stage's battle track when a match starts. Local announcer calls cover each round, Ready and Fight; the browser speaks the winning fighter's name. Selection countdown and random rolls have their own sound cues. Sources and licenses are listed in `assets/audio/ASSETS.md`.
+- **Combo Dojo** is a practice mode for all eight combo skills. Choose a fighter and combo, then chain the displayed attacks on a passive dummy. Clearing a challenge moves on to the next one automatically (the HUD shows how many you have cleared). The dummy stands its ground (no pushback, so every chain stays in reach), recovers and cannot be knocked out. Press `R` to reset, `Q/E` or `[/]` to switch challenges, and `Esc` to pause.
+- **Controller support** uses the browser Gamepad API. The first two connected controllers map to Players 1 and 2. The D-pad or left stick moves, the four face buttons attack, LT / RT block, and Start pauses or confirms.
+- **Stage themes** are picked after both fighters lock in: Neon City, Mountain Dojo, Volcano Pit, Moonlit Harbor and Storm Rooftop. Each has its own backdrop, ambient effects and battle music (previewed while you choose). Left / Right or `1`–`5` choose, `R` picks at random, Enter or a second click starts the fight, Esc goes back. The last stage is remembered.
 - **Reduced Motion** in Settings disables camera shake, hit sparks, white hit flashes, idle bob and projectile trails. The setting is saved on this device.
 - **Tutorial** on the home screen explains movement, blocking, attacks, combo chains and special cancels.
 - Pause menu: Resume, Rematch, Exit Match and Settings. Exit Match asks for Yes / No confirmation.
@@ -113,12 +116,12 @@ Normal attacks leave enough hit-stun for follow-ups, with combo damage scaling o
 
 ```
 Main menu
- |- 1 PLAYER VS CPU -> Choose your challenge (Easy / Normal / Hard) -> Fighter select -> Match
- |- 2 PLAYERS -------------------------------------------------------> Fighter select -> Match
+ |- 1 PLAYER VS CPU -> Choose your challenge (Easy / Normal / Hard) -> Fighter select -> Stage theme -> Match
+ |- 2 PLAYERS -------------------------------------------------------> Fighter select -> Stage theme -> Match
  |- COMBO DOJO / TUTORIAL / SETTINGS
 ```
 
 - **Choose your challenge** appears when you start a 1-player game. Each level says what the CPU will do, so you can pick without guessing. `1 / 2 / 3` quick-picks, Enter or click continues, Esc goes back.
 - **Change it any time:** the pause menu has a `CPU LEVEL` row (Left/Right, 1-player matches only) that applies immediately; the match-over screen has `D` / tap to change it before the rematch; Settings keeps the same `CPU DIFFICULTY` row.
 - The last level you used is remembered in the browser (`localStorage`).
-- The level is shown in the match HUD (`CPU HARD`), on the fighter-select screen and on the main-menu button.
+- The level is shown in the match HUD (`CPU HARD`) and on the fighter-select screen.

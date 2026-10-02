@@ -25,17 +25,17 @@ function gamepadState(pad) {
   return {
     l: button(pad, 14) || x < -dead, r: button(pad, 15) || x > dead,
     u: button(pad, 12) || y < -dead, d: button(pad, 13) || y > dead,
-    p: button(pad, 0), k: button(pad, 1), s: button(pad, 2), x: button(pad, 3),
+    p: button(pad, 0), k: button(pad, 1), s: button(pad, 2), x: button(pad, 3), b: button(pad, 6) || button(pad, 7),
     shoulderL: button(pad, 4), shoulderR: button(pad, 5), start: button(pad, 9), back: button(pad, 8),
   };
 }
-function menuConfirm(mode) { return ['menu', 'dojoSelect', 'tutorial', 'pause', 'settings', 'match'].includes(mode); }
+function menuConfirm(mode) { return ['menu', 'dojoSelect', 'tutorial', 'pause', 'settings', 'match', 'theme'].includes(mode); }
 export function pollGamepads({ onKey, getMode, unlock = () => {} }) {
   if (!navigator.getGamepads) return;
   const pads = Array.from(navigator.getGamepads()).filter(Boolean).slice(0, 2);
   for (let n = 0; n < 2; n++) {
     const next = gamepadState(pads[n]), was = { ...padHeld[n] };
-    for (const action of ['l', 'r', 'u', 'd', 'p', 'k', 's', 'x']) {
+    for (const action of ['l', 'r', 'u', 'd', 'p', 'k', 's', 'x', 'b']) {
       if (next[action] && !was[action]) padEdges[n][action] = 1;
       padHeld[n][action] = next[action];
     }

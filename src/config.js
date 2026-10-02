@@ -11,9 +11,9 @@ export const BUFFER = 8, METER_MAX = 100;      // input buffer (frames), super m
 // Move data. s/a/r = startup/active/recovery frames, st = hit-stun, kb = knockback,
 // g = guard height: 'mid' (block high or low), 'high' (must stand-block), 'low' (must crouch-block). kd = knockdown.
 export const ATK = {
-  p:  { s: 4, a: 4, r: 9,  dmg: 6,  reach: 75,  y: -100, h: 32, st: 20, kb: 4, g: 'mid' },
+  p:  { s: 4, a: 4, r: 9,  dmg: 6,  reach: 75,  y: -100, h: 32, st: 24, kb: 4, g: 'mid' },
   k:  { s: 7, a: 5, r: 13, dmg: 10, reach: 95,  y: -70,  h: 40, st: 26, kb: 7, g: 'mid' },
-  cp: { s: 3, a: 3, r: 7,  dmg: 4,  reach: 65,  y: -60,  h: 28, st: 18, kb: 3, g: 'mid' },               // crouching jab
+  cp: { s: 3, a: 3, r: 7,  dmg: 4,  reach: 65,  y: -60,  h: 28, st: 22, kb: 3, g: 'mid' },               // crouching jab
   c:  { s: 8, a: 4, r: 17, dmg: 8,  reach: 105, y: -28,  h: 28, st: 40, kb: 6, g: 'low', kd: 1 },        // low sweep
   jp: { s: 3, a: 8, r: 6,  dmg: 7,  reach: 60,  y: -105, h: 45, st: 22, kb: 4, g: 'high' },              // jump punch
   j:  { s: 4, a: 40, r: 6, dmg: 11, reach: 70,  y: -80,  h: 85, st: 34, kb: 6, g: 'high' },              // fly kick
@@ -103,6 +103,15 @@ export const pauseRect = i => ({ x: 330, y: 150 + i * 48, w: 300, h: 40 });   //
 export const PORT = { x0: 156, y: 66, w: 84, h: 84, gap: 10 };
 export const randomBoxRect = { x: PORT.x0 + CHARS.length * (PORT.w + PORT.gap), y: PORT.y, w: PORT.w, h: PORT.h };
 export const KEYMAP = [
-  { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyJ' },
-  { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon', x: 'Quote' },
+  { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyJ', b: 'KeyV' },
+  { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'Semicolon', x: 'Quote', b: 'Slash' },
 ];
+// Stage themes, chosen after both fighters lock in. Each has its own backdrop and battle music.
+export const THEMES = [
+  { id: 'city',    name: 'NEON CITY',      tag: 'RAMEN STREET SUNSET', music: 'battle_music_01-loop.ogg', loopAt: 7.5, col: '#ff3d6e' },
+  { id: 'dojo',    name: 'MOUNTAIN DOJO',  tag: 'CHERRY BLOSSOM TEMPLE', music: 'theme-dojo.ogg', col: '#ffb7d5' },
+  { id: 'volcano', name: 'VOLCANO PIT',    tag: 'MOLTEN ARENA', music: 'theme-volcano.ogg', col: '#ff7b1c' },
+  { id: 'harbor',  name: 'MOONLIT HARBOR', tag: 'DOCKS AT MIDNIGHT', music: 'theme-harbor.ogg', col: '#4dabf7' },
+  { id: 'rooftop', name: 'STORM ROOFTOP',  tag: 'THUNDER OVER THE CITY', music: 'theme-rooftop.ogg', col: '#b89aff' },
+];
+export const themeCardRect = i => ({ x: 40 + i * 180, y: 128, w: 160, h: 236 });

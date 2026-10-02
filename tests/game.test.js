@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWorld, startMatch, step, openSelect, selMove, selLock, selRandom, selectClick, pause, resume, pauseChoose } from '../src/game.js';
+import { createWorld, startMatch, step, openSelect, selMove, selLock, selRandom, selectClick, pause, resume, pauseChoose, themeMove, themeConfirm, themeClick, openDojo, startDojo, DOJO_NEXT_DELAY } from '../src/game.js';
 import { applyHit } from '../src/combat.js';
-import { W, GY, CHARS, PORT, randomBoxRect, SELECT_FRAMES, ROLL_FRAMES } from '../src/config.js';
+import { W, GY, CHARS, COMBOS, THEMES, themeCardRect, PORT, randomBoxRect, SELECT_FRAMES, ROLL_FRAMES } from '../src/config.js';
 
 const idle = () => ({});
 const mash = () => { const r = () => Math.random() < 0.3; return { l: r(), r: r(), u: r(), d: r(), p: r(), k: r(), s: r(), x: r() }; };
@@ -35,14 +35,28 @@ test('every character can land punch, kick and special', () => {
   });
 });
 
-test('select: both players choose at the same time, then the fight starts', () => {
+test('select: both players choose at the same time, then pick a stage theme before the fight', () => {
   const w = createWorld(); openSelect(w, true);
   selMove(w, 1, 2); selLock(w, 1);                                // P2 locks in first, without waiting for P1
   assert.equal(w.sel.cur[1], 3); assert.ok(w.sel.lock[1] && !w.sel.lock[0]);
   selectClick(w, PORT.x0 + 5, PORT.y + 5); assert.equal(w.sel.cur[0], 0);   // mouse picks for the highlighted side (P1)
   selMove(w, 0, 1); selLock(w, 0);
   for (let i = 0; i < 80; i++) step(w, idle);
-  assert.equal(w.mode, 'intro'); assert.deepEqual(w.picks, [1, 3]);
+  assert.equal(w.mode, 'theme'); assert.deepEqual(w.picks, [1, 3]);
+  themeMove(w, 1); assert.equal(w.theme, 1);
+  themeConfirm(w);
+  assert.equal(w.mode, 'intro'); assert.deepEqual(w.picks, [1, 3]); assert.equal(w.theme, 1);
+});
+
+test('theme select: wraps around, clicking selects then confirms', () => {
+  const w = createWorld(); openSelect(w, true); selLock(w, 0); selLock(w, 1);
+  for (let i = 0; i < 80; i++) step(w, idle);
+  themeMove(w, -1); assert.equal(w.theme, THEMES.length - 1);
+  const r = themeCardRect(2), cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  themeClick(w, cx, cy); assert.equal(w.theme, 2); assert.equal(w.mode, 'theme');
+  themeClick(w, cx, cy); assert.equal(w.mode, 'intro');
+  assert.ok(THEMES.every(t => t.music && t.name), 'every theme has its own music');
+  assert.equal(new Set(THEMES.map(t => t.music)).size, THEMES.length);
 });
 
 test('select: locked players can not move, and unlocking works', () => {
@@ -222,4 +236,43 @@ test('difficulty: harder CPU levels really are more dangerous (seeded, averaged)
     const [easy, normal, hard] = [damage(0), damage(1), damage(2)];
     assert.ok(easy < normal && normal < hard, `damage easy ${easy} < normal ${normal} < hard ${hard}`);
   } finally { Math.random = realRandom; }
+});
+
+test('dedicated block button guards without holding back, and roots the fighter', () => {
+  const w = duel(); const defender = w.fighters[1];
+  run(w, 40, (n, f) => (n === 0 ? (f === 0 ? { p: true } : {}) : { b: true, r: true }));
+  assert.ok(defender.hp > defender.maxHp - 3, 'punch is blocked (chip damage at most)');
+  const still = duel();
+  run(still, 40, n => (n === 1 ? { b: true, l: true } : {}));
+  assert.equal(still.fighters[1].x, 460, 'holding block stops walking');
+  assert.equal(still.fighters[1].block, 1);
+  const w2 = duel(); const open = w2.fighters[1];
+  run(w2, 40, (n, f) => (n === 0 && f === 0 ? { p: true } : {}));
+  assert.ok(open.hp < defender.hp, 'without block the punch connects');
+});
+
+test('pausing stops the screen shake', () => {
+  const w = duel(); w.shake = 12; pause(w);
+  assert.equal(w.mode, 'pause'); assert.equal(w.shake, 0);
+});
+
+test('combo dojo moves on to the next challenge after a clear', () => {
+  const w = createWorld(); openDojo(w); startDojo(w);
+  assert.equal(w.mode, 'dojo'); assert.equal(w.dojo.combo, 0);
+  w.dojo.completed = true; w.dojo.successT = 1; w.dojo.cleared[0] = true;
+  step(w, idle);
+  assert.equal(w.dojo.combo, 1); assert.ok(!w.dojo.completed); assert.equal(w.dojo.progress, 0);
+  assert.equal(w.mode, 'dojo'); assert.ok(w.dojo.cleared[0]);
+  w.dojo.combo = COMBOS.length - 1; w.dojo.completed = true; w.dojo.successT = 1;
+  step(w, idle); assert.equal(w.dojo.combo, 0, 'wraps back to the first challenge');
+  assert.ok(DOJO_NEXT_DELAY > 30, 'players get a moment to see the clear');
+});
+
+test('three-hit dojo chains are reachable: the dummy holds still and punch links into kick', () => {
+  const w = createWorld(); openDojo(w); w.dojo.combo = COMBOS.findIndex(c => c.name === 'TRIPLE STRIKE'); startDojo(w);
+  w.fighters[0].x = 410; w.fighters[1].x = 480;
+  const presses = { 0: 'p', 12: 'p', 30: 'k' };
+  for (let f = 0; f < 80 && !w.dojo.completed; f++) step(w, n => (n === 0 && presses[f] ? { [presses[f]]: true } : {}));
+  assert.ok(w.dojo.completed, 'Punch, Punch, Kick completes the challenge');
+  assert.equal(w.fighters[1].x, 480, 'dummy is not pushed out of reach');
 });
