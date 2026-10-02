@@ -1,6 +1,6 @@
-# Alley Fury
+# Pixel Brawl
 
-A 2D fighting game (1P vs CPU or 2P local) written as plain ES modules. No build step, no dependencies.
+A pixel-art fighting game (1P vs CPU or 2P local) written as plain ES modules. No build step, no dependencies.
 
 ## Project layout
 
@@ -13,9 +13,10 @@ src/fighter.js      movement, attacks, blocking
 src/combat.js       hitboxes and damage
 src/ai.js           CPU opponent
 src/input.js        keyboard, mouse and touch input
-src/audio.js        sound effects
+src/audio.js        music, sound effects and mute settings
 src/render.js       all canvas drawing
 src/main.js         wires everything together, runs the game loop
+assets/audio/       local CC0 music and sound effects
 tests/              automated tests (Node)
 ```
 
@@ -57,7 +58,7 @@ npm test        # needs Node 18+
 | Super Art (full meter) | J | ' (quote) |
 | Block | Hold back (away from opponent) | same |
 
-Click or tap a menu option (or press 1 / 2). On phones, on-screen buttons control Player 1. `Esc` = menu.
+Click or tap a menu option (or press 1 / 2). On phones, on-screen buttons control Player 1. `Esc` pauses a match; use it to return from character select or the tutorial.
 
 ## Deploy (GitHub Pages)
 
@@ -80,12 +81,20 @@ Settings > Pages > Deploy from a branch > `main` / root. The game is served at `
 
 All move numbers (startup, active, recovery, damage, hit-stun, guard height) are in `ATK` in `src/config.js`; damage rules are in `src/combat.js`.
 
-## Character select, pause menu and combo skills
+## Character select, options and tutorial
 
-- **Both players pick at the same time.** P1: `A/D` move, `F` lock in, `G` random. P2: `Left/Right` move, `K` lock in, `L` random. With the mouse, click a side to choose who you control, then click a fighter, **LOCK IN** or **RANDOM**. When both are ready the fight starts after a short countdown.
-- **Random** rolls through the roster for 3 seconds, slows down, then lands on a fighter and locks in.
-- **Pause menu:** `Esc` during a match opens **Resume / Rematch / Exit Match** (the game also auto-pauses when you switch tabs). The menu lists all combo skills.
-- **Combo skills** (extra damage on top of normal combo damage; each skill pays once per combo, longer skills upgrade it):
+- Character select gives players 30 seconds. An unselected player is assigned a random fighter when time expires.
+- In CPU mode, the CPU panel starts empty and the CPU randomly chooses after Player 1 locks in.
+- The seventh roster tile, marked `? RANDOM`, starts a 3-second random roll. The roll does not lock the fighter; select **LOCK IN** when ready. Press `R` to roll for the active player.
+- CPU difficulty is selectable on the home screen: Easy, Normal or Hard.
+- **Settings** on the home screen or pause menu gives separate 0–100 sliders for music, menu/select sounds, fight effects and announcer voice, plus master mute. Choices are saved on this device. Menu music switches to a quieter fight track when a match starts. Local announcer calls cover each round, Ready and Fight; the browser speaks the winning fighter's name. Selection countdown and random rolls have their own sound cues. Sources and licenses are listed in `assets/audio/ASSETS.md`.
+- **Combo Dojo** is a practice mode for all eight combo skills. Choose a fighter and combo, then chain the displayed attacks on a passive dummy. The dummy recovers and cannot be knocked out. Press `R` to reset, `Q/E` or `[/]` to switch challenges, and `Esc` to pause.
+- **Controller support** uses the browser Gamepad API. The first two connected controllers map to Players 1 and 2. The D-pad or left stick moves, the four face buttons attack, and Start pauses or confirms.
+- **Reduced Motion** in Settings disables camera shake, hit sparks, white hit flashes, idle bob and projectile trails. The setting is saved on this device.
+- **Tutorial** on the home screen explains movement, blocking, attacks, combo chains and special cancels.
+- Pause menu: Resume, Rematch, Exit Match and Settings. Exit Match asks for Yes / No confirmation.
+
+Combo skills (extra damage on top of normal combo damage; each skill pays once per combo, longer skills upgrade it):
 
 | Skill | Sequence | Bonus |
 |---|---|---|
@@ -98,4 +107,18 @@ All move numbers (startup, active, recovery, damage, hit-stun, guard height) are
 | KICK CANCEL | Kick, Special | +10 |
 | MEGA COMBO | Punch, Punch, Kick, Special | +20 and knockdown |
 
-Normal attacks now leave more hit-stun, so punches and kicks link into each other, and combo damage scaling is gentler (-8% per hit, minimum 50%). Edit the skills in `COMBOS` in `src/config.js`.
+Normal attacks leave enough hit-stun for follow-ups, with combo damage scaling of 8% per hit down to 50%. Edit skills in `COMBOS` in `src/config.js`.
+
+## Game flow and difficulty
+
+```
+Main menu
+ |- 1 PLAYER VS CPU -> Choose your challenge (Easy / Normal / Hard) -> Fighter select -> Match
+ |- 2 PLAYERS -------------------------------------------------------> Fighter select -> Match
+ |- COMBO DOJO / TUTORIAL / SETTINGS
+```
+
+- **Choose your challenge** appears when you start a 1-player game. Each level says what the CPU will do, so you can pick without guessing. `1 / 2 / 3` quick-picks, Enter or click continues, Esc goes back.
+- **Change it any time:** the pause menu has a `CPU LEVEL` row (Left/Right, 1-player matches only) that applies immediately; the match-over screen has `D` / tap to change it before the rematch; Settings keeps the same `CPU DIFFICULTY` row.
+- The last level you used is remembered in the browser (`localStorage`).
+- The level is shown in the match HUD (`CPU HARD`), on the fighter-select screen and on the main-menu button.
